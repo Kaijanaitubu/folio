@@ -130,6 +130,43 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(out['title'],'元の日本語タイトル')
         out=importer.parse_gallery(json.dumps({'title':'Original English title','japanese_title':None}))
         self.assertEqual(out['title'],'Original English title')
+    def test_reader_page_cover_selection(self):
+        hashes=[f'{n:064x}' for n in range(1,5)]
+        fixture=json.dumps({'title':'Page fixture','files':[{'hash':h} for h in hashes]})
+        for fragment,index in (('',0),('#1',0),('#3',2),('#3-4',2),('#3-',2),('#0002',1)):
+            with self.subTest(fragment=fragment),patch('importer.fetch',return_value=fixture),patch('importer.thumbnail_routes',return_value=(0,set(),0)):
+                out=importer.import_url('https://hitomi.la/reader/123.html'+fragment)
+                self.assertIn(hashes[index],out['cover'])
+                self.assertIn('/webpsmalltn/' if index else '/webpbigtn/',out['cover'])
+                self.assertEqual(out['pages'],4);self.assertEqual(out['warnings'],[])
+                self.assertNotIn('_cover_hash',out)
+                self.assertNotIn('_cover_directory',out)
+        # Non-reader links retain the ordinary first-page cover.
+        with patch('importer.fetch',return_value=fixture),patch('importer.thumbnail_routes',return_value=(0,set(),0)):
+            self.assertIn(hashes[0],importer.import_url('https://hitomi.la/galleries/123.html#3')['cover'])
+    def test_reader_cover_invalid_page_and_missing_thumbnail_fallback(self):
+        first='1'*64
+        fixture=json.dumps({'title':'Fallback fixture','files':[{'hash':first},{},{'hash':'invalid'}]})
+        for fragment in ('#0','#-1','#99','#abc','#2.5','#'+'9'*200,'#2','#3'):
+            with self.subTest(fragment=fragment),patch('importer.fetch',return_value=fixture),patch('importer.thumbnail_routes',return_value=(0,set(),0)):
+                out=importer.import_url('https://hitomi.la/reader/123.html'+fragment)
+                self.assertIn(first,out['cover']);self.assertEqual(len(out['warnings']),1)
+                self.assertIn('/webpbigtn/',out['cover'])
+        with patch('importer.fetch',return_value='{"title":"Empty","files":[]}'):
+            out=importer.import_url('https://hitomi.la/reader/123.html#7')
+            self.assertEqual(out['cover'],'');self.assertEqual(len(out['warnings']),2)
+    def test_clear_work_metadata_preserves_dictionary_and_other_works(self):
+        kinds=('author','circle','tag','series','character')
+        metadata={kind:[{'name':kind+' one'},{'name':kind+' two'}] for kind in kinds}
+        edited=self.save(dict(metadata,title='Clear this work'))
+        other=self.save(dict(metadata,title='Keep this work'))
+        for kind in kinds:
+            edited[kind]=[]
+            with db.transaction() as c:
+                edited=db.save_work(c,edited,edited['id'])
+                self.assertEqual(db.get_work(c,edited['id'])[kind],[])
+                self.assertEqual(len(db.get_work(c,other['id'])[kind]),2)
+                self.assertEqual(len(db.entity_list(c,kind)),2)
     def test_thumbnail_routing_and_legacy_repair(self):
         routes=importer.parse_thumbnail_routes('gg = { m: function(g) { var o = 1; switch(g) { case 0: case 2921: o = 0; break; } return o; }}')
         h='0'*61+'69b'

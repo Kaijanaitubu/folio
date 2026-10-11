@@ -9,3 +9,5 @@ Object.assign(en,{canonicalName:'Original name',displayAlias:'Primary display na
 Object.assign(ja,{canonicalName:'元の名前',displayAlias:'第一表示に使う名前',displayAliasHint:'元の名前または別名を選択できます。どちらでも検索でき、インポート時の名前は維持されます。',sortMetadata:'メタデータの並べ替え',meta_name_asc:'名前：A–Z / あ–ん',meta_name_desc:'名前：Z–A / ん–あ',meta_uses_desc:'関連作品が多い順',meta_uses_asc:'関連作品が少ない順',meta_newest:'追加が新しい順',meta_oldest:'追加が古い順'});
 Object.assign(en,{sortReading:'Sort reading (optional)',sortReadingHint:'For Kanji names, enter a kana reading for gojuon sorting. Leave empty to sort by the display name.'});
 Object.assign(ja,{sortReading:'並べ替え用の読み（任意）',sortReadingHint:'漢字名を五十音順にする場合は、かなの読みを入力してください。空欄の場合は表示名で並べ替えます。'});
+Object.assign(en,{clearMetadata:'Remove all',clearMetadataTitle:'Remove all {kind} from this work?',clearMetadataText:'This clears this field in your draft. Save to apply. The metadata directory and other works are unchanged.'});
+Object.assign(ja,{clearMetadata:'全削除',clearMetadataTitle:'この作品の「{kind}」をすべて外しますか？',clearMetadataText:'編集中のこの欄を空にします。保存すると反映されます。メタデータ辞典や他の作品には影響しません。'});

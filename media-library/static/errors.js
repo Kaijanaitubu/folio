@@ -43,6 +43,8 @@ const messages={
  'Metadata host does not resolve to public addresses':'メタデータ取得先の接続情報が無効です',
  'Metadata response exceeds 4 MB':'メタデータの応答が4 MBを超えています',
  'Cover URL unavailable; other metadata was retrieved':'表紙URLを取得できませんでした。他の情報は取得できました',
+ 'Linked page is unavailable; using the first page for the cover':'リンク先のページを特定できないため、先頭ページを表紙に使用します',
+ 'Linked page thumbnail is unavailable; using the first page for the cover':'リンク先のページのサムネイルを特定できないため、先頭ページを表紙に使用します',
  'No title was retrieved':'タイトルを取得できませんでした',
  'Failed to fetch':'接続に失敗しました。サーバーが起動しているか確認してください'
 };

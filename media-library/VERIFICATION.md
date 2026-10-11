@@ -1,5 +1,13 @@
 # Verification record — 2026-10-11
 
+## Bulk metadata clearing and linked-page covers
+
+The updated suite passes 50 tests: 32 core, 10 HTTP/job, and 8 relay/cache checks. New cases verify per-kind association clearing preserves dictionary records and other works, one-based reader-page and spread selection, original first-page behavior, invalid/out-of-range fragments, missing hashes, and the interior-page thumbnail format. JavaScript syntax checks pass.
+
+Browser checks used two fictional works in a separate disposable database, each with 20 associations of every kind. All five clear controls worked; cancel preserved the chips, edits did not change saved data before Save, and discarding restored 20 authors. Saving cleared only the chosen work and retained the other work and all 100 dictionary items. Japanese labels and disabled empty-field buttons fit a 390×844 viewport without horizontal overflow.
+
+Official Hitomi reader JavaScript confirms one-based numeric fragments and spread fragments selecting their first page, using gallery file order. A live page-7 `webpbigtn` request returned 404; `webpsmalltn` succeeded. The implemented importer and RAM-only relay returned `image/webp`, 13,604 bytes, with no warnings. No artwork was displayed or written to files. Existing saved covers were not modified. Source: https://ltn.gold-usergeneratedcontent.net/reader.js
+
 ## Automated checks
 
 29 core regression tests passed. These cover title-only persistence, trimmed exact title uniqueness, invalid-write rollback, tag gender identity, aliases and ambiguity, preferred display labels across all five entity types without changing identity/search, invalid preferred aliases and removal fallback, immutable creation order, name/usage/date sorting and pagination beyond 300 entities, kana normalization and explicit Kanji readings, idempotent migration from the old schema, merge display-choice retention, OR-before-AND semantics, review exclusion, quoted values and Unicode case folding, numeric comparisons and null negation, invalid-query rejection, more than ten dimensions, permanent dimension numbering, score bounds and dimension deletion, exact source URLs and duplicate warnings, directory merges/deletion, detail timestamps, seeded pagination, bookmark folders, importer fixtures, Japanese-title priority/English fallback, restricted CDN routing/legacy URL resolution, and full backup restoration including job state.

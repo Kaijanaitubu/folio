@@ -45,6 +45,7 @@
 .utility-bar .suggestions button span{min-width:0;overflow-wrap:anywhere}.utility-bar .suggestions button small{flex-shrink:0}
 @media(max-width:700px){.utility-bar{width:auto;left:0;right:0;max-width:none;bottom:0;gap:8px;padding:9px 12px calc(9px + env(safe-area-inset-bottom));border-radius:15px 15px 0 0}.utility-bar button{flex:0 0 44px;padding:0;width:44px;min-width:44px;min-height:46px}.utility-search{padding-left:8px}.utility-search input{font-size:16px}.active-query{max-width:55%}.library-toolbar select{max-width:160px}}
 .directory-info{min-width:0;overflow-wrap:anywhere}.directory-row>.row{flex-shrink:0}.metadata-name-link{color:var(--accent);display:inline-block;padding:8px 0;min-height:34px}.metadata-name-link:hover{text-decoration:underline}.directory-tabs{flex-wrap:wrap}.metadata-toolbar select{max-width:230px}
+.metadata-field-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap}.metadata-field-heading .field-title{margin:0}.clear-metadata{font-size:12px;padding:6px 10px;min-height:36px}.clear-metadata:disabled{opacity:.4;cursor:default}
 @media(max-width:700px){
  .pagehead{flex-wrap:wrap;gap:12px}
  .entry-form{padding-bottom:0}

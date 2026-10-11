@@ -126,6 +126,8 @@ Provide a clearly accessible **Manage metadata** area containing Tags, Authors, 
 
 Entry forms support searching/selecting existing items, creating an item, and opening its metadata editor without discarding the entry draft. Use removable chips or equivalent touch-friendly controls for multi-value fields.
 
+Each work-editor metadata field (authors, circles, tags, series, characters) provides a localized Remove all action, disabled when empty. Confirm which field will be cleared, then remove its associations only from the current draft. Save commits the change; canceling the confirmation or discarding the draft preserves saved associations. Shared dictionary records and other works remain unchanged.
+
 Editing shared metadata updates all entries referencing it. Display this fact in the metadata editor. Removing a chip affects only the current entry. Deleting an entity removes its associations but never deletes works.
 
 Merging is explicit and atomic: reassign associations to the survivor, deduplicate associations, preserve useful alternate names as aliases, and remove the absorbed entity. Tag merges are restricted to the same gender; change gender deliberately first if needed. Canceling or failing a merge must not leave partial changes.
@@ -208,6 +210,7 @@ Each link belongs to one work and includes a stable ID, URL, optional label, opt
 ### 7.2 Covers
 
 - Store a remote image URL only; it can be imported or manually entered/replaced.
+- Hitomi reader links with a valid one-based `#N`, `#N-M`, or `#N-` fragment use page N's thumbnail as the imported cover. A spread uses its first referenced page. Interior pages use `webpsmalltn`; first-page covers use `webpbigtn`. Invalid/out-of-range pages or missing page hashes fall back to the first page with a warning. No fragment or non-reader URLs retain the first-page cover. Apply this to both interactive and bookmark imports. Existing saved covers are unchanged until explicitly reimported/replaced; source URLs retain their original fragments.
 - No file upload, persistent image-byte storage, disk image cache, generated thumbnail storage, or offline image cache is permitted.
 - Supported Hitomi thumbnail URLs are displayed through a server relay. Read the target from the saved, owner-scoped work; never accept an arbitrary proxy target from a request. Canonicalize legacy thumbnail URLs using the current source routing table without modifying saved URLs. Fetch over TLS with the source-site referrer, pin a validated public DNS address, and reject redirects, unsupported hosts/paths/formats, oversized or incomplete responses, and non-image content. Other manually supplied image hosts continue to display directly in the browser.
 - Relay image bytes may exist only in volatile RAM and the response sent to the browser. Keep an LRU cache capped at 32 MiB, with a five-minute TTL. Coalesce concurrent requests for the same URL. Limit each thumbnail to 2 MiB and the complete fetch/send operation to four concurrent requests. Fetch in bounded chunks with a 20-second upstream deadline; apply a 30-second client-send timeout. Do not preload an owner's entire library.

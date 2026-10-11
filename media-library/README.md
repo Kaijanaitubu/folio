@@ -84,11 +84,15 @@ Name sorting combines A–Z and kana order, using width/case/kana normalization 
 
 ## Importing
 
+Each metadata field in the work editor has a Remove all button. Confirm to clear that field in the draft, then Save to apply. Discarding edits restores saved associations. Shared dictionary records and other works are kept.
+
+Hitomi reader links such as `/reader/ID.html#7` use page 7's thumbnail as the cover; `#7-8` and `#7-` also use page 7. Interior pages use the source's smaller `webpsmalltn` format because large gallery thumbnails are not available for every page. Invalid/out-of-range fragments or missing page hashes fall back to the first page with a warning. No page fragment or a non-reader URL uses the first page. This also applies to bookmark imports. Existing covers stay unchanged until reimported; select the Cover replacement when prompted and save to apply it.
+
 For one work, add a URL in New/Edit and use Import metadata. The work is not saved until you press Save. With multiple links, choose the one to import from. Partial metadata is usable. Existing personal ratings/reviews/purchase status remain unchanged. A duplicate retrieved title aborts metadata application without modifying the draft.
 
 For many works, export browser bookmarks to HTML, open Bookmark imports, upload, choose folders/items, and start. Each successful item becomes a new work. Unsupported links are excluded in preview. Duplicate titles, missing titles, ambiguous aliases, and fetch failures are reported without silently merging works. Failed/cancelled items can be retried. Closing the page does not stop the job. Cancellation keeps completed entries and allows an already running request to finish.
 
-Supported source URL shapes include `/galleries/ID.html`, `/reader/ID.html#page`, and `/category/name-ID.html`. Saved URLs are never rewritten. Other URL shapes can still be saved manually. Import requests are restricted to known source hosts, pinned to public resolved addresses, bounded by time and response size, and do not follow redirects. The adapter reads gallery JSON and the thumbnail routing table from the source's current metadata host. It prefers `japanese_title` like the original page and derives the first-file WebP thumbnail URL. Importing remains metadata-only and executes no source JavaScript. Viewing a supported Hitomi cover uses the separate volatile relay described below.
+Supported source URL shapes include `/galleries/ID.html`, `/reader/ID.html#page`, and `/category/name-ID.html`. Saved URLs are never rewritten. Other URL shapes can still be saved manually. Import requests are restricted to known source hosts, pinned to public resolved addresses, bounded by time and response size, and do not follow redirects. The adapter reads gallery JSON and the thumbnail routing table from the source's current metadata host. It prefers `japanese_title` like the original page and derives the selected-page WebP thumbnail URL. Importing remains metadata-only and executes no source JavaScript. Viewing a supported Hitomi cover uses the separate volatile relay described below.
 
 ## Memory-only covers
 

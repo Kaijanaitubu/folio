@@ -75,10 +75,35 @@ def fetch(path,host='ltn.gold-usergeneratedcontent.net'):
     finally:
         conn.close(); raw.close()
 
-def parse_gallery(text):
+def reader_page(url):
+    """Hitomi reader fragments are one-based; spreads use their first page."""
+    parsed=urlsplit(url)
+    if not re.fullmatch(r'/reader/[0-9]+(?:\.html)?/?',parsed.path) or not parsed.fragment:
+        return 1
+    match=re.fullmatch(r'([0-9]{1,10})(?:-[0-9]{0,10})?',parsed.fragment)
+    return int(match[1]) if match and int(match[1])>0 else None
+
+def parse_gallery(text,cover_page=1):
     text=re.sub(r'^\s*(?:var\s+)?galleryinfo\s*=\s*','',text).strip().rstrip(';')
     data=json.loads(text)
-    out={'title':data.get('japanese_title') or data.get('title') or '', 'language':data.get('language') or '', 'pages':len(data.get('files',[])) or None, 'author':[], 'circle':[], 'series':[], 'character':[], 'tag':[], 'cover':'', 'warnings':[], '_cover_hash':(data.get('files') or [{}])[0].get('hash')}
+    files=data.get('files') or []
+    warnings=[]
+    if not isinstance(cover_page,int) or not 1<=cover_page<=len(files):
+        if cover_page!=1: warnings.append('Linked page is unavailable; using the first page for the cover')
+        cover_page=1
+    def image_hash(page):
+        item=files[page-1] if 1<=page<=len(files) else {}
+        value=item.get('hash') if isinstance(item,dict) else None
+        return value if re.fullmatch(r'[0-9a-f]{64}',str(value)) else None
+    cover_hash=image_hash(cover_page)
+    if cover_page!=1 and not cover_hash:
+        cover_hash=image_hash(1)
+        warnings.append('Linked page thumbnail is unavailable; using the first page for the cover')
+        cover_page=1
+    out={'title':data.get('japanese_title') or data.get('title') or '', 'language':data.get('language') or '', 'pages':len(files) or None, 'author':[], 'circle':[], 'series':[], 'character':[], 'tag':[], 'cover':'', 'warnings':warnings, '_cover_hash':cover_hash}
+    # Interior pages have reader-size thumbnails; the large gallery thumbnail
+    # is only generated for cover pages on the source site.
+    out['_cover_directory']='webpsmalltn' if cover_page!=1 else 'webpbigtn'
     types={'manga':'manga','doujinshi':'doujinshi','artistcg':'artist cg','gamecg':'game cg','imageset':'image set','anime':'anime'}
     out['category']=types.get(str(data.get('type','')).lower().replace(' ',''),'')
     for key,field,name in [('artists','author','artist'),('groups','circle','group'),('parodys','series','parody'),('characters','character','character')]:
@@ -97,12 +122,13 @@ def parse_gallery(text):
 def import_url(url):
     gid=gallery_id(url)
     if not gid: raise ValueError('Unsupported URL; save it as a source or enter metadata manually')
-    result=parse_gallery(fetch('/galleries/'+gid+'.js'))
-    # Mirror gallery.js/common.js: first-file hash + live gg.js routing table.
+    result=parse_gallery(fetch('/galleries/'+gid+'.js'),reader_page(url))
+    # Use the linked reader page (or first file) + the live gg.js routing table.
     # Only metadata/code text is read; no source JS runs and no image is fetched.
     image_hash=result.pop('_cover_hash',None)
+    directory=result.pop('_cover_directory','webpbigtn')
     try:
-        if image_hash: result['cover']=thumbnail_url(image_hash)
+        if image_hash: result['cover']=thumbnail_url(image_hash,directory=directory)
         else: result['warnings'].append('Cover URL unavailable; other metadata was retrieved')
     except Exception:
         result['warnings'].append('Cover URL unavailable; other metadata was retrieved')
