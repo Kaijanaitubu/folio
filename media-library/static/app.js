@@ -204,13 +204,29 @@ render();
 function setTheme(value){theme=value;localStorage.setItem('folio-theme',value);document.documentElement.dataset.theme=value;document.querySelector('meta[name="theme-color"]').content=value==='dark'?'#101010':'#f6f5f1';if(route().path==='/settings')settings()}
 // A focused search lives at the top on phones. Other inputs hide the utility
 // bar, avoiding overlap even on browsers that resize the layout viewport.
+let utilityMotion=null;
 function updateUtilityFocus(){
  const active=document.activeElement,root=document.documentElement;
  const searching=active?.closest?.('#bottom-search-form')||(root.dataset.utilityFocus==='search'&&active?.closest?.('.utility-bar'));
- root.dataset.utilityFocus=searching?'search':active?.matches?.('input,textarea,select,[contenteditable="true"]')?'editing':'idle';
+ const previous=root.dataset.utilityFocus||'idle';
+ const next=searching?'search':active?.matches?.('input,textarea,select,[contenteditable="true"]')?'editing':'idle';
+ const bar=$('.utility-bar'),mobile=window.matchMedia('(max-width:700px)').matches;
+ const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const moving=bar&&mobile&&!reduceMotion&&previous!==next&&previous!=='editing'&&next!=='editing';
+ // Capture the currently drawn position before canceling an interrupted slide.
+ const from=moving?bar.getBoundingClientRect().top:0;
+ if(previous!==next||!mobile||reduceMotion){utilityMotion?.cancel();utilityMotion=null}
+ root.dataset.utilityFocus=next;
  const viewport=window.visualViewport;
  root.style.setProperty('--visual-top',(viewport?.offsetTop||0)+'px');
  root.style.setProperty('--visual-height',(viewport?.height||window.innerHeight)+'px');
+ if(moving&&bar.animate){
+  const distance=from-bar.getBoundingClientRect().top;
+  if(Math.abs(distance)>1)utilityMotion=bar.animate(
+   [{transform:`translateY(${distance}px)`},{transform:'translateY(0)'}],
+   {duration:320,easing:'cubic-bezier(0.22,1,0.36,1)'}
+  );
+ }
 }
 document.addEventListener('focusin',updateUtilityFocus);
 document.addEventListener('focusout',()=>requestAnimationFrame(updateUtilityFocus));

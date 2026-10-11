@@ -1,5 +1,11 @@
 # Verification record — 2026-10-11
 
+## Mobile search slide — 2026-10-12
+
+The utility bar now uses a 320 ms ease-out translation on mobile search focus/blur, including interruption from its current drawn position. Desktop and reduced-motion preferences bypass the slide; viewport changes do not restart it. JavaScript syntax and the existing source-flow/rating-editor checks pass. No backend or saved library data changed.
+
+Browser verification at 586×884 observed the focused bar moving from y=812 through y≈247 to y=0 while the same `query` input retained focus. Blur also produced an intermediate return position before settling at the bottom. Focusing another form input still hides the bar, with no console errors. This verifies browser rendering, not a physical Android/iOS keyboard. A cropped screenshot of the settled top bar is in ignored `test-output/search-motion-mobile.png`.
+
 ## Rating scale conversion — 2026-10-12
 
 60 Python checks passed (39 core, 13 HTTP/job, 8 relay/cache), plus `node test_rating_flow.mjs`, `node test_source_flow.mjs`, and JavaScript syntax checks. All database tests used isolated disposable databases. Conversion covers all 81 scale pairs from 2–10, exact half ties rounding down, monotonic scores, exclusive full marks, the specified 3↔5 examples, unrated entries, unchanged scales, stable dimension numbers, other-dimension and timestamp preservation, preview cancellation, stale/missing confirmations, HTTP token enforcement, and atomic rollback.
