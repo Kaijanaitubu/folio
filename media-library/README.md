@@ -1,5 +1,7 @@
 # Folio — Personal Media Library
 
+[English](README.md) | [日本語](README.ja.md)
+
 A working PC-hosted implementation of Personal Media Database Requirements v2.0. Uses Python's standard library, SQLite, and browser JavaScript. No package installation, paid hosting, Node build, or external account is required.
 
 ## Start on this PC

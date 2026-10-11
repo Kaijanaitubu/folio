@@ -1,5 +1,7 @@
 # Folio — Personal Media Library
 
+[English](README.md) | [日本語](README.ja.md)
+
 A personal media library with a responsive English/Japanese interface, metadata and aliases, flexible ratings, search, bookmark imports, and a memory-only thumbnail relay. Built with Python's standard library, SQLite, and browser JavaScript.
 
 ## Run locally
