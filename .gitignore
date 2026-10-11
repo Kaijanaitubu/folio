@@ -1,0 +1,21 @@
+# Track only the application and its development documentation from this workspace.
+/*
+!/.gitignore
+!/README.md
+!/Personal-Media-Database-Requirements-v2.0.md
+!/media-library/
+
+# Keep local screenshots and runtime/private material out of every commit.
+/media-library/preview*.jpg
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.log
+.env
+.env.*
+*.pem
+*.key

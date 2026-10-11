@@ -1,0 +1,58 @@
+/* Black/orange is the default; the original light scheme remains selectable. */
+:root:not([data-theme="light"]){color-scheme:dark;--paper:#101010;--surface:#1b1b1b;--ink:#f0ece6;--muted:#a5a19b;--line:#31302e;--accent:#f49a44;--soft:#33251a;--danger:#f08791;--on-accent:#17130f}
+:root:not([data-theme="light"]) input,:root:not([data-theme="light"]) textarea,:root:not([data-theme="light"]) select,:root:not([data-theme="light"]) .searchbox,:root:not([data-theme="light"]) .panel,:root:not([data-theme="light"]) .suggestions,:root:not([data-theme="light"]) .directory-row,:root:not([data-theme="light"]) dialog{background:var(--surface)}
+:root:not([data-theme="light"]) .sidebar,:root:not([data-theme="light"]) .mobile-head{background:#171717}
+:root:not([data-theme="light"]) .brandmark,:root:not([data-theme="light"]) .btn.primary{color:var(--on-accent)}
+:root:not([data-theme="light"]) .navitem{color:var(--muted)}
+:root:not([data-theme="light"]) .navitem.active{color:var(--accent)}
+:root:not([data-theme="light"]) .btn:hover{background:#2b241e;border-color:#a66b35}
+:root:not([data-theme="light"]) .btn.primary:hover{background:#ffad61}
+:root:not([data-theme="light"]) .cover{background:#272522}
+:root:not([data-theme="light"]) .placeholder{background:linear-gradient(145deg,#25231f,#1b1b1b);color:#857c71}
+:root:not([data-theme="light"]) .cover-badge{background:#171717ed;color:var(--ink)}
+:root:not([data-theme="light"]) .tag{background:#2d2b27;color:#c0b9ad}
+:root:not([data-theme="light"]) .tag.female{background:#382730;color:#dfa9c5}
+:root:not([data-theme="light"]) .tag.male{background:#23303c;color:#a1bddd}
+:root:not([data-theme="light"]) .empty{background:#171615;border-color:#3b3732}
+:root:not([data-theme="light"]) .search-help code{background:#29251f;color:#cbb69d}
+:root:not([data-theme="light"]) .bottom-bar{background:#1b1b1bf5;box-shadow:0 8px 30px #0005}
+:root:not([data-theme="light"]) .bottom-bar button:last-child{color:var(--on-accent)}
+:root:not([data-theme="light"]) .chips{background:#171717}
+:root:not([data-theme="light"]) .chip,:root:not([data-theme="light"]) .notice{color:#e0bb94}
+:root:not([data-theme="light"]) .score-editor button{color:#555049}
+:root:not([data-theme="light"]) .score-editor button.on{color:var(--accent)}
+:root:not([data-theme="light"]) .score-editor .clear-score{color:var(--muted)}
+:root:not([data-theme="light"]) .error{background:#341f24;border-color:#63323d}
+:root:not([data-theme="light"]) .file-drop{background:#221d17;border-color:#695035}
+:root:not([data-theme="light"]) .status.failed,:root:not([data-theme="light"]) .status.needs_review{background:#341f24}
+:root:not([data-theme="light"]) .status.added{background:#23352b;color:#a3d1b2}
+:root:not([data-theme="light"]) .progress{background:#34302a}
+:root:not([data-theme="light"]) #toast{background:#f49a44;color:#17130f}
+:root:not([data-theme="light"]) button:focus-visible,:root:not([data-theme="light"]) a:focus-visible,:root:not([data-theme="light"]) input:focus-visible,:root:not([data-theme="light"]) textarea:focus-visible,:root:not([data-theme="light"]) select:focus-visible{outline-color:#f49a44}
+.library-toolbar{justify-content:space-between;align-items:center}.active-query{max-width:70%;overflow-wrap:anywhere}
+.placeholder span{text-align:center;padding:0 10px;letter-spacing:.5px}.placeholder small{font-size:10px;padding:0 12px;text-align:center;line-height:1.6}
+.entry-form{padding-bottom:75px}.edit-actions{bottom:100px}.edit-actions #save-work{background:var(--accent);color:var(--on-accent,#fff)}.edit-actions #delete-work{background:transparent;color:var(--danger)}
+.utility-bar{width:min(640px,calc(100vw - 280px));gap:8px;bottom:20px}
+.utility-search{display:flex;align-items:center;flex:1;min-width:0;margin:0;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:2px 4px 2px 12px}
+.utility-search input{flex:1;min-width:0;width:0;border:0;padding:10px 4px;background:transparent!important;font-size:16px;min-height:44px;outline:none}
+.utility-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.utility-bar button{flex:0 0 44px;min-width:44px;width:44px;padding:0;height:46px}
+.utility-bar .utility-search button{background:transparent;color:var(--accent)}
+.utility-bar #bottom-add{background:var(--accent);color:var(--on-accent,#fff)}
+.utility-bar .suggestions{top:auto;bottom:calc(100% + 14px);max-height:min(340px,50vh);overflow-y:auto}
+.utility-bar .suggestions button{width:100%;height:auto;flex:none;display:flex;padding:12px;gap:8px;text-align:left;background:var(--surface);color:var(--ink)}
+.utility-bar .suggestions button:hover,.utility-bar .suggestions button.selected{background:var(--soft)}
+.utility-bar .suggestions button span{min-width:0;overflow-wrap:anywhere}.utility-bar .suggestions button small{flex-shrink:0}
+@media(max-width:700px){.utility-bar{width:auto;left:0;right:0;max-width:none;bottom:0;gap:8px;padding:9px 12px calc(9px + env(safe-area-inset-bottom));border-radius:15px 15px 0 0}.utility-bar button{flex:0 0 44px;padding:0;width:44px;min-width:44px;min-height:46px}.utility-search{padding-left:8px}.utility-search input{font-size:16px}.active-query{max-width:55%}.library-toolbar select{max-width:160px}}
+.directory-info{min-width:0;overflow-wrap:anywhere}.directory-row>.row{flex-shrink:0}.metadata-name-link{color:var(--accent);display:inline-block;padding:8px 0;min-height:34px}.metadata-name-link:hover{text-decoration:underline}.directory-tabs{flex-wrap:wrap}.metadata-toolbar select{max-width:230px}
+@media(max-width:700px){
+ .pagehead{flex-wrap:wrap;gap:12px}
+ .entry-form{padding-bottom:0}
+ .edit-actions{position:static;transform:none;width:100%;margin:20px 0 0;border-radius:12px}
+ :root[data-utility-focus="editing"] .utility-bar{visibility:hidden;pointer-events:none}
+ :root[data-utility-focus="search"] .utility-bar{top:var(--visual-top,0px);bottom:auto;z-index:45;border-radius:0 0 15px 15px;padding:calc(9px + env(safe-area-inset-top)) 12px 9px}
+ :root[data-utility-focus="search"] .utility-bar .suggestions{bottom:auto;top:calc(100% + 14px);max-height:calc(var(--visual-height,100dvh) - 110px)}
+ .metadata-toolbar{flex-wrap:wrap}.metadata-toolbar .searchbox{flex:1 1 170px}.metadata-toolbar select{flex:0 1 auto;max-width:190px}
+ .directory-tabs button{padding:10px;font-size:12px}.directory-row .subtitle{overflow-wrap:anywhere}
+ input,textarea,select{scroll-margin-top:90px;scroll-margin-bottom:20px}
+}
