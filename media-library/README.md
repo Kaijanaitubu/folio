@@ -150,10 +150,16 @@ py -3 server.py --restore 'E:\Folio-backups\library-TIMESTAMP.sqlite3'
 
 An existing live database is backed up first. The restore command checks database integrity, restores through SQLite's backup API, and exits. Start normally afterward. Pending/in-flight import items recover on startup; completed work/item writes are atomic. If using the bundled Python here, substitute its full path for `py -3`.
 
+## Changing a rating scale
+
+Edit a dimension in Rating dimensions, change its maximum, then choose Preview conversion. Review the old-to-new values and work counts, then Convert and save. Cancel leaves saved data unchanged. Conversion keeps 1 as the lowest score, rounds exact half ties down, and reserves full marks for works that already had full marks. Unrated remains unrated. For example, 3→5 maps 1/2/3 to 1/3/5; 5→3 maps 1/2/3/4/5 to 1/1/2/2/3. Reducing the scale loses distinctions; increasing it later does not restore them. Create a backup in Settings before converting if you need to restore the original ratings. A preview invalidated by another browser must be refreshed before saving.
+
 ## Verification
 
 ```powershell
 py -3 -m unittest -v test_app test_server test_cover_relay
+node test_rating_flow.mjs
+node test_source_flow.mjs
 py -3 benchmark.py --count 30000
 py -3 benchmark.py --count 100000
 py -3 check_live_import.py

@@ -32,6 +32,23 @@ class ServerTests(unittest.TestCase):
     def test_csrf_and_origin(self):
         self.assertEqual(self.request('works','POST',{'title':'Rejected'},token=False)[0],403)
         self.assertEqual(self.request('works','POST',{'title':'Rejected'},origin='https://evil.test')[0],403)
+    def test_rating_scale_preview_confirm_and_stale_http(self):
+        data={'name':'HTTP scale','maximum':3,'symbol':'Star'}
+        status,result=self.request('dimensions','POST',data);self.assertEqual(status,200);did=result['id']
+        _,w=self.request('works','POST',{'title':'HTTP scale work','ratings':{did:2}})
+        data['maximum']=5
+        self.assertEqual(self.request('dimensions/'+did,'PUT',data)[0],400)
+        self.assertEqual(self.request('dimensions/'+did+'/preview','POST',{'maximum':5},token=False)[0],403)
+        status,preview=self.request('dimensions/'+did+'/preview','POST',{'maximum':5})
+        self.assertEqual(status,200);self.assertEqual(preview['changed'],1)
+        self.assertEqual(self.request('works/'+w['id'])[1]['ratings'][did],2)
+        data['conversion_signature']=preview['signature']
+        self.assertEqual(self.request('dimensions/'+did,'PUT',data)[0],200)
+        self.assertEqual(self.request('works/'+w['id'])[1]['ratings'][did],3)
+        self.assertEqual(self.request('dimensions/'+did,'PUT',data)[0],400)
+        self.assertEqual(self.request('dimensions/'+did+'/preview','POST',{'maximum':11})[0],400)
+        self.assertEqual(self.request('dimensions/missing/preview','POST',{'maximum':3})[0],400)
+        self.request('works/'+w['id'],'DELETE');self.request('dimensions/'+did,'DELETE')
     def test_http_save_open_update_search_delete(self):
         status,w=self.request('works','POST',{'title':'HTTP test','links':[{'url':'https://example.org/a?q=1#two'}]})
         self.assertEqual(status,200);self.assertIsNone(w['opened']);wid=w['id']

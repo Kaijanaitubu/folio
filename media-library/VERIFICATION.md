@@ -1,5 +1,11 @@
 # Verification record — 2026-10-11
 
+## Rating scale conversion — 2026-10-12
+
+60 Python checks passed (39 core, 13 HTTP/job, 8 relay/cache), plus `node test_rating_flow.mjs`, `node test_source_flow.mjs`, and JavaScript syntax checks. All database tests used isolated disposable databases. Conversion covers all 81 scale pairs from 2–10, exact half ties rounding down, monotonic scores, exclusive full marks, the specified 3↔5 examples, unrated entries, unchanged scales, stable dimension numbers, other-dimension and timestamp preservation, preview cancellation, stale/missing confirmations, HTTP token enforcement, and atomic rollback.
+
+The actual editor handlers were exercised with DOM stubs in Node for English/Japanese preview and confirm, cancellation, changing the proposed scale, unchanged/new dimensions, stale previews, and late responses after dismissal. This is not a browser rendering test. Browser inspection was rejected by the browser URL policy while selecting the QA tab; no alternate browser automation was used. Mobile/desktop layout has not been visually verified for this dialog. QA data and helpers remain excluded from Git and the distribution ZIP.
+
 ## External source entry — 2026-10-12
 
 54 Python regression tests pass: 34 core, 12 HTTP/job, 8 cover/cache. New checks cover all-source lookup, exact/related page discrimination, multiple registrations, unsupported/unsafe URLs, no remote fetch or opened-at change during lookup, token protection, and duplicate-title preview with unchanged save uniqueness. `node test_source_flow.mjs` verifies actual source-flow functions for direct opening, related-page dialog choices/cancel/new import, full URL preservation, no automatic saving, and ignoring stale import responses. It also executes the generated bookmarklet in a sandbox to check its target, fragment/query encoding, unsupported source rejection, and unsafe target rejection. JavaScript syntax and patch whitespace checks pass.

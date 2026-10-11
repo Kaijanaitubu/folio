@@ -183,8 +183,9 @@ Ten symbol presets: Star, Heart, Circle, Diamond, Square, Triangle, Flower, Sun,
 ### 6.3 Dimension management
 
 - Renaming or changing the symbol retains scores.
-- Increasing the maximum retains scores without scaling them.
-- Reducing the maximum is blocked if any stored score exceeds the proposed maximum. Explain that those scores must first be changed/cleared.
+- Changing the maximum in either direction converts existing scores after a preview and explicit confirmation. With old maximum `M`, new maximum `N`, and score `s`, compute `1 + (s - 1) * (N - 1) / (M - 1)`. Round fractional parts <= 0.5 down and > 0.5 up (五捨五超入), using exact integer arithmetic. An old full score (`s = M`) always becomes `N`; all other scores are capped at `N - 1`. Unrated stays unrated. Unchanged scales do not convert scores.
+- Preview every old-to-new score mapping and the count of works at each old score, plus rated and changed counts. Explain that reducing the scale loses distinctions and increasing it again cannot recover original scores. Cancel changes nothing. Recheck the preview against the current scale and score distribution on save; if another client changed either, require a fresh preview.
+- Commit scale, scores, name, symbol, and visibility together in one transaction. Retain rating identifiers, other dimensions, unrated entries, and work timestamps. Example: 3→5 maps `[1,2,3]` to `[1,3,5]`; 5→3 maps `[1,2,3,4,5]` to `[1,1,2,2,3]`; 9/10→2/3 and 10/10→3/3.
 - Deletion requires confirmation and removes all scores for that dimension.
 - Gallery visibility is configurable per dimension. Default new dimensions to hidden on cards to avoid unlimited card growth.
 - Sorting and autocomplete identify each dimension by both its number and display name.
@@ -483,7 +484,7 @@ The release is complete only when the following behaviors are verified. Use focu
 10. Editing, deleting, and merging directory items update affected associations without deleting works.
 11. Create at least twelve rating dimensions, demonstrating no hard-coded two-axis or ten-axis limit.
 12. Scores support 1 through maximum plus clear/unrated; zero is rejected.
-13. Rename/change symbols without score loss; block unsafe maximum reduction.
+13. Rename/change symbols without score loss. Preview and confirm scale changes, verify the example mappings, half ties, full-score exclusivity, unrated preservation, stale-preview rejection, cancellation, and transactional rollback.
 14. Delete dimension 2, create another, and confirm dimension 3 stays `rating3` and number 2 is not reused.
 15. Gallery visibility and per-dimension sorting work independently.
 

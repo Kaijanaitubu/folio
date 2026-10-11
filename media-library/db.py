@@ -233,12 +233,40 @@ def list_works(c,q='',sort='newest',offset=0,limit=40,seed='0',random_one=False)
     ids=[r[0] for r in c.execute('SELECT w.id FROM works w WHERE '+where+' ORDER BY '+order+',w.id LIMIT ? OFFSET ?',args+sortargs+[limit,offset])]
     return {'total':total,'items':[get_work(c,i) for i in ids]}
 
+def convert_score(value,old_maximum,new_maximum):
+    """Keep 1 and full marks; exact half ties round down, using integers."""
+    if old_maximum==new_maximum: return value
+    if value==old_maximum: return new_maximum
+    whole,remainder=divmod((value-1)*(new_maximum-1),old_maximum-1)
+    return min(new_maximum-1,1+whole+int(2*remainder>old_maximum-1))
+
+def dimension_preview(c,did,maximum):
+    if type(maximum)!=int or not 2<=maximum<=10: raise ValueError('Invalid rating dimension')
+    dimension=c.execute('SELECT * FROM dimensions WHERE id=? AND owner=?',(did,OWNER)).fetchone()
+    if not dimension: raise ValueError('Dimension not found')
+    counts={r['value']:r['count'] for r in c.execute('SELECT value,count(*) AS count FROM scores WHERE dimension_id=? GROUP BY value',(did,))}
+    old=dimension['maximum']
+    rows=[{'old':value,'new':convert_score(value,old,maximum),'count':counts.get(value,0)} for value in range(1,old+1)]
+    signature=hashlib.sha256(json.dumps([did,old,maximum,rows],sort_keys=True).encode()).hexdigest()
+    return {'old_maximum':old,'maximum':maximum,'rows':rows,'rated':sum(counts.values()),
+            'changed':sum(r['count'] for r in rows if r['old']!=r['new']),'signature':signature}
+
 def save_dimension(c,data,did=None):
     name=str(data.get('name','')).strip(); maximum=data.get('maximum'); symbol=data.get('symbol','Star')
     if not name or type(maximum)!=int or not 2<=maximum<=10 or symbol not in SYMBOLS: raise ValueError('Invalid rating dimension')
     if did:
-        if not c.execute('SELECT 1 FROM dimensions WHERE id=? AND owner=?',(did,OWNER)).fetchone(): raise ValueError('Dimension not found')
-        if c.execute('SELECT 1 FROM scores WHERE dimension_id=? AND value>?',(did,maximum)).fetchone(): raise ValueError('Clear or lower scores above the new maximum first')
+        # Reserve the write transaction before reading the scale or scores.
+        if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
+        preview=dimension_preview(c,did,maximum)
+        expected=data.get('conversion_signature')
+        if expected is not None and expected!=preview['signature']:
+            raise ValueError('Rating scores or scale changed; preview the conversion again')
+        if preview['old_maximum']!=maximum:
+            if expected is None: raise ValueError('Preview the rating conversion before saving')
+            # A single CASE update avoids converting already-updated values twice.
+            cases=' '.join('WHEN ? THEN ?' for r in preview['rows'])
+            args=[v for r in preview['rows'] for v in (r['old'],r['new'])]
+            c.execute('UPDATE scores SET value=CASE value '+cases+' ELSE value END WHERE dimension_id=?',args+[did])
         c.execute('UPDATE dimensions SET name=?,maximum=?,symbol=?,gallery=? WHERE id=?',(name,maximum,symbol,int(bool(data.get('gallery'))),did))
     else:
         did=uid(); number=c.execute('SELECT next_rating FROM owners WHERE id=?',(OWNER,)).fetchone()[0]

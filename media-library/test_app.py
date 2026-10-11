@@ -79,12 +79,80 @@ class LibraryTests(unittest.TestCase):
     def test_rating_max_and_delete(self):
         d=self.dimension();w=self.save({'title':'Rated','ratings':{d['id']:5}})
         with db.transaction() as c:
-            with self.assertRaises(ValueError): db.save_dimension(c,{'name':'Rename','maximum':3,'symbol':'Heart'},d['id'])
-            db.save_dimension(c,{'name':'Rename','maximum':6,'symbol':'Heart'},d['id'])
-            self.assertEqual(db.get_work(c,w['id'])['ratings'][d['id']],5)
+            preview=db.dimension_preview(c,d['id'],3)
+            db.save_dimension(c,{'name':'Rename','maximum':3,'symbol':'Heart','conversion_signature':preview['signature']},d['id'])
+            self.assertEqual(db.get_work(c,w['id'])['ratings'][d['id']],3)
+            preview=db.dimension_preview(c,d['id'],6)
+            db.save_dimension(c,{'name':'Rename','maximum':6,'symbol':'Heart','conversion_signature':preview['signature']},d['id'])
+            self.assertEqual(db.get_work(c,w['id'])['ratings'][d['id']],6)
             c.execute('DELETE FROM dimensions WHERE id=?',(d['id'],))
             self.assertEqual(db.get_work(c,w['id'])['ratings'],{})
         with self.assertRaises(ValueError): self.save({'title':'Invalid','ratings':{d['id']:0}})
+    def test_rating_conversion_examples_and_half_ties(self):
+        self.assertEqual([db.convert_score(v,3,5) for v in range(1,4)],[1,3,5])
+        self.assertEqual([db.convert_score(v,5,3) for v in range(1,6)],[1,1,2,2,3])
+        self.assertEqual(db.convert_score(9,10,3),2)
+        self.assertEqual(db.convert_score(10,10,3),3)
+        self.assertEqual(db.convert_score(2,3,4),2) # 2.5 -> 2
+        self.assertEqual(db.convert_score(3,4,5),4) # 3 + 2/3 -> 4
+    def test_rating_conversion_every_scale_pair(self):
+        from fractions import Fraction
+        for old in range(2,11):
+            for new in range(2,11):
+                converted=[db.convert_score(v,old,new) for v in range(1,old+1)]
+                self.assertEqual(converted,sorted(converted))
+                self.assertEqual(converted[0],1);self.assertEqual(converted[-1],new)
+                self.assertTrue(all(1<=v<new for v in converted[:-1]))
+                for v,result in enumerate(converted,1):
+                    if v==old: continue
+                    raw=1+Fraction((v-1)*(new-1),old-1)
+                    floor=raw.numerator//raw.denominator
+                    expected=min(new-1,floor+int(raw-floor>Fraction(1,2)))
+                    self.assertEqual(result,expected)
+    def test_rating_preview_cancel_and_conversion_isolation(self):
+        d=self.dimension(maximum=5);other=self.dimension('Other',10)
+        works=[self.save({'title':f'Score {v}','review':'Keep','ratings':{d['id']:v,other['id']:9}}) for v in range(1,6)]
+        unrated=self.save({'title':'Unrated'})
+        with db.transaction() as c:
+            preview=db.dimension_preview(c,d['id'],3)
+            self.assertEqual(preview['rated'],5);self.assertEqual(preview['changed'],4)
+            self.assertEqual([r['new'] for r in preview['rows']],[1,1,2,2,3])
+            self.assertEqual([db.get_work(c,w['id'])['ratings'][d['id']] for w in works],list(range(1,6)))
+            db.save_dimension(c,{'name':'Quality','maximum':3,'symbol':'Heart','conversion_signature':preview['signature']},d['id'])
+            for w,score in zip(works,[1,1,2,2,3]):
+                saved=db.get_work(c,w['id'])
+                self.assertEqual(saved['ratings'],{d['id']:score,other['id']:9})
+                for key in ('title','review','created','updated','opened'): self.assertEqual(saved[key],w[key])
+            self.assertEqual(db.get_work(c,unrated['id'])['ratings'],{})
+            self.assertEqual(db.dimensions(c)[0]['number'],d['number'])
+        self.assertEqual(self.search('rating1:3')['total'],1)
+    def test_rating_stale_preview_and_missing_confirmation(self):
+        d=self.dimension();w=self.save({'title':'Changing','ratings':{d['id']:4}})
+        with db.transaction() as c: preview=db.dimension_preview(c,d['id'],3)
+        with db.transaction() as c: db.save_work(c,{'title':w['title'],'ratings':{d['id']:2}},w['id'])
+        for signature in (None,preview['signature']):
+            with self.assertRaises(ValueError),db.transaction() as c:
+                db.save_dimension(c,{'name':'Changed','maximum':3,'symbol':'Star','conversion_signature':signature},d['id'])
+        with db.transaction() as c:
+            self.assertEqual(db.dimensions(c)[0]['maximum'],5)
+            self.assertEqual(db.get_work(c,w['id'])['ratings'][d['id']],2)
+            preview=db.dimension_preview(c,d['id'],3)
+            with self.assertRaises(ValueError): db.dimension_preview(c,d['id'],True)
+            with self.assertRaises(ValueError): db.dimension_preview(c,'missing',3)
+            db.save_dimension(c,{'name':'Changed','maximum':3,'symbol':'Star','conversion_signature':preview['signature']},d['id'])
+        with self.assertRaises(ValueError),db.transaction() as c:
+            db.save_dimension(c,{'name':'Changed again','maximum':3,'symbol':'Star','conversion_signature':preview['signature']},d['id'])
+    def test_rating_conversion_rollback_and_rename(self):
+        d=self.dimension(maximum=3);w=self.save({'title':'Rollback','ratings':{d['id']:2}})
+        with self.assertRaises(RuntimeError),db.transaction() as c:
+            preview=db.dimension_preview(c,d['id'],5)
+            db.save_dimension(c,{'name':'Changed','maximum':5,'symbol':'Star','conversion_signature':preview['signature']},d['id'])
+            raise RuntimeError('abort')
+        with db.transaction() as c:
+            self.assertEqual(db.dimensions(c)[0]['maximum'],3)
+            self.assertEqual(db.get_work(c,w['id'])['ratings'][d['id']],2)
+            db.save_dimension(c,{'name':'Rename','maximum':3,'symbol':'Heart','gallery':True},d['id'])
+            self.assertEqual(db.get_work(c,w['id'])['ratings'][d['id']],2)
     def test_links_and_duplicate_url_warning(self):
         u='https://example.org/chapter?q=one#page3'; self.save({'title':'A','links':[{'url':u,'is_primary':True}]})
         w=self.save({'title':'B','links':[{'url':u},{'url':'https://example.org/two','is_primary':True}]})

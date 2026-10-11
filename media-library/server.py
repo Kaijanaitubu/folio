@@ -153,7 +153,8 @@ class Handler(BaseHTTPRequestHandler):
                 elif self.command in ('POST','PUT'): result={'id':db.save_entity(c,data,ident)}
                 elif self.command=='DELETE': c.execute('DELETE FROM entities WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
             elif action=='dimensions':
-                if self.command=='GET': result=db.dimensions(c)
+                if self.command=='POST' and ident and len(parts)==3 and parts[2]=='preview': result=db.dimension_preview(c,ident,data.get('maximum'))
+                elif self.command=='GET': result=db.dimensions(c)
                 elif self.command in ('POST','PUT'): result={'id':db.save_dimension(c,data,ident)}
                 elif self.command=='DELETE': c.execute('DELETE FROM dimensions WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
             elif action=='suggestions':
