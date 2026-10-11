@@ -95,6 +95,26 @@ class LibraryTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.save({'title':'C','links':[{'url':u},{'url':u}]})
         for u in ('javascript:alert(1)','file:///test','http://user:secret@example.org'):
             with self.assertRaises(ValueError): self.save({'title':'Unsafe','cover':u})
+    def test_source_lookup_all_links_and_related_pages_without_fetch(self):
+        w=self.save({'title':'Linked','links':[{'url':'https://example.org/primary','is_primary':True},{'url':'https://hitomi.la/reader/123.html#7'}]})
+        with db.transaction() as c,patch('importer.fetch') as fetch:
+            for url in ('https://hitomi.la/reader/123.html#7','http://www.hitomi.la/reader/123.html#7'):
+                result=db.source_matches(c,url)
+                self.assertEqual(result['match'],'exact');self.assertEqual(result['matches'][0]['id'],w['id'])
+            for url in ('https://hitomi.la/reader/123.html#8','https://hitomi.la/doujinshi/example-123.html','https://hitomi.la/galleries/123.html'):
+                result=db.source_matches(c,url)
+                self.assertEqual(result['match'],'gallery');self.assertEqual(result['matches'][0]['source_url'],'https://hitomi.la/reader/123.html#7')
+            self.assertEqual(db.source_matches(c,'https://hitomi.la/reader/12.html')['matches'],[])
+            fetch.assert_not_called()
+            self.assertIsNone(db.get_work(c,w['id'])['opened'])
+        other=self.save({'title':'Second registration','links':[{'url':'https://hitomi.la/reader/123.html#9'}]})
+        with db.transaction() as c:
+            self.assertEqual(len(db.source_matches(c,'https://hitomi.la/reader/123.html#1')['matches']),2)
+            self.assertEqual(len(db.source_matches(c,'https://hitomi.la/reader/123.html#7')['matches']),1)
+    def test_source_lookup_rejects_unsafe_or_unsupported_urls(self):
+        with db.transaction() as c:
+            for url in ('','javascript:alert(1)','https://hitomi.la.evil.test/reader/123.html','https://user:pass@hitomi.la/reader/123.html','https://hitomi.la/','https://hitomi.la:9999/reader/123.html','https://ltn.hitomi.la/galleries/123.html'):
+                with self.subTest(url=url),self.assertRaises(ValueError): db.source_matches(c,url)
     def test_directory_merge_delete(self):
         a=self.save({'title':'A','author':[{'name':'Alpha','aliases':['A']} ]})
         b=self.save({'title':'B','author':[{'name':'Beta','aliases':['B']} ]})

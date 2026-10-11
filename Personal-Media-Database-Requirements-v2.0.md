@@ -222,6 +222,12 @@ Each link belongs to one work and includes a stable ID, URL, optional label, opt
 
 ## 8. Library, navigation, and editing
 
+### External source entry amendment (2026-10-12)
+
+Provide a bilingual Settings setup for a navigation-only Hitomi bookmarklet and a pasted-URL fallback. Configure the Folio HTTP/HTTPS origin, prohibit credentials, and explain that phones need the PC LAN address. The bookmarklet accepts only Hitomi/www Hitomi pages and preserves the complete current URL in the `/#/source?url=` hash route. Do not expose the library to the source site or fetch arbitrary URLs.
+
+Check all owner-scoped source links without remote access or work writes. One exact source match opens its detail; multiple exact matches require selection. If only other URLs/pages of the same Hitomi gallery ID match, show a dialog containing registered titles and source URLs before navigation. Offer existing entry, cancel, or importing the current link as new. A new draft retains the submitted URL, fetches supported metadata, and is never saved automatically. Preserve the URL on failure. Allow duplicate-title preview with an explicit warning only for this source-entry draft; saving still requires a unique title. Existing interactive/batch duplicate behavior remains unchanged. Late lookup/import responses must not overwrite another route or draft. Validate bookmark execution on the actual mobile browser separately from API/function tests.
+
 ### 8.1 Library/home
 
 Opening the app shows the library, not a dashboard. Default to newest added. Use a responsive gallery, prioritizing smartphones while supporting desktop mouse/keyboard interaction.

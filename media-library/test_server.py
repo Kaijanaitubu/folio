@@ -48,6 +48,23 @@ class ServerTests(unittest.TestCase):
         with patch('importer.import_url',return_value={'title':'Partial result','author':[],'circle':[],'tag':[],'pages':None}):
             status,r=self.request('import','POST',{'url':'https://hitomi.la/reader/1.html'})
             self.assertEqual(status,200);self.assertIsNone(r['pages']);self.assertEqual(r['ambiguities'],[])
+    def test_source_check_is_read_only_and_requires_request_token(self):
+        _,work=self.request('works','POST',{'title':'Source check fixture','links':[{'url':'https://hitomi.la/reader/54321.html#3'}]})
+        with patch('importer.import_url') as fetch:
+            status,result=self.request('source-check','POST',{'url':'https://hitomi.la/reader/54321.html#3'})
+            self.assertEqual(status,200);self.assertEqual(result['match'],'exact');self.assertEqual(result['matches'][0]['id'],work['id'])
+            self.assertEqual(self.request('source-check','POST',{'url':'https://hitomi.la/reader/54321.html#4'})[1]['match'],'gallery')
+            self.assertEqual(self.request('source-check','POST',{'url':'https://example.org/reader/54321.html'})[0],400)
+            self.assertEqual(self.request('source-check','POST',{'url':'https://hitomi.la/reader/54321.html'},token=False)[0],403)
+            fetch.assert_not_called()
+        self.assertIsNone(self.request('works/'+work['id'])[1]['opened'])
+    def test_source_draft_duplicate_title_can_be_reviewed_but_not_saved(self):
+        self.request('works','POST',{'title':'Source duplicate title'})
+        fixture={'title':'Source duplicate title','author':[],'circle':[],'tag':[],'warnings':[],'cover':'https://example.org/cover.webp'}
+        with patch('importer.import_url',return_value=fixture):
+            status,result=self.request('import','POST',{'url':'https://hitomi.la/reader/1.html','allow_duplicate_title':True})
+        self.assertEqual(status,200);self.assertEqual(result['cover'],fixture['cover']);self.assertIn('This title already exists; change it before saving',result['warnings'])
+        self.assertEqual(self.request('works','POST',result)[0],409)
     def test_worker_job_recovery_and_duplicate_skip(self):
         self.request('works','POST',{'title':'Job duplicate'})
         _,j=self.request('jobs','POST',{'items':[{'url':'https://hitomi.la/reader/101.html'},{'url':'https://hitomi.la/reader/102.html'},{'url':'https://example.org/unsupported'}]})

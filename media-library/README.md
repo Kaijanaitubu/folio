@@ -84,6 +84,23 @@ Name sorting combines A–Z and kana order, using width/case/kana normalization 
 
 ## Importing
 
+### Open a Hitomi page in Folio
+
+In Settings, find **Open from Hitomi**. Configure the Folio address for the device you will use; on a phone, open Folio with the PC LAN address rather than localhost. Copy the generated bookmark address into a browser bookmark named **Folio**. On desktop, you can instead drag the Folio link into the bookmarks bar.
+
+On a Hitomi work/reader page, run this bookmark. Android Chromium browsers may require typing the bookmark name in the address bar and selecting the saved bookmark suggestion rather than opening it from the bookmark manager. Actual Brave Android behavior still needs device verification. If it does not execute, use the Hitomi URL field in Folio Settings as a fallback.
+
+- An exact source link, including a secondary source, opens its work detail. HTTP/HTTPS and www variants are treated alike. Multiple exact matches offer an entry chooser.
+- Another page or URL of the same Hitomi gallery opens a confirmation showing the registered link. Choose an existing entry, cancel, or import the current link as a new draft.
+- An unregistered gallery imports metadata into a new editor with the original URL, query, and page fragment preserved. Nothing is saved until Save. Import failure retains the URL for retry or manual editing.
+- Source-entry imports may preview a duplicate title with a warning; rename it before saving. Title uniqueness remains enforced, and ordinary interactive/batch duplicate handling is unchanged.
+
+The bookmark only navigates to Folio. It does not inspect your library from Hitomi, send page contents, or require an extension, CORS access, or a public server. The Folio PC must be running and reachable on your LAN. `/#/source?url=ENCODED_URL` is the incoming route; source checking itself never fetches remote data or modifies works.
+
+To check the source-flow logic without a browser (optional Node.js requirement), run `node test_source_flow.mjs` from this directory. These tests do not replace testing the saved bookmark on your phone.
+
+### Editing and bookmark imports
+
 Each metadata field in the work editor has a Remove all button. Confirm to clear that field in the draft, then Save to apply. Discarding edits restores saved associations. Shared dictionary records and other works are kept.
 
 Hitomi reader links such as `/reader/ID.html#7` use page 7's thumbnail as the cover; `#7-8` and `#7-` also use page 7. Interior pages use the source's smaller `webpsmalltn` format because large gallery thumbnails are not available for every page. Invalid/out-of-range fragments or missing page hashes fall back to the first page with a warning. No page fragment or a non-reader URL uses the first page. This also applies to bookmark imports. Existing covers stay unchanged until reimported; select the Cover replacement when prompted and save to apply it.

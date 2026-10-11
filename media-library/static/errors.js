@@ -46,6 +46,9 @@ const messages={
  'Linked page is unavailable; using the first page for the cover':'リンク先のページを特定できないため、先頭ページを表紙に使用します',
  'Linked page thumbnail is unavailable; using the first page for the cover':'リンク先のページのサムネイルを特定できないため、先頭ページを表紙に使用します',
  'No title was retrieved':'タイトルを取得できませんでした',
+ 'Use a Hitomi work or reader URL':'Hitomiの作品ページまたはリーダーのURLを指定してください',
+ 'Source URL is too long':'ソースURLが長すぎます',
+ 'This title already exists; change it before saving':'このタイトルは登録済みです。保存する前にタイトルを変更してください',
  'Failed to fetch':'接続に失敗しました。サーバーが起動しているか確認してください'
 };
 export function localizeError(message,lang){if(lang!=='ja')return message;if(messages[message])return messages[message];

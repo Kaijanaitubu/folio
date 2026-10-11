@@ -85,6 +85,28 @@ def url(value):
 def dimensions(c):
     return [dict(r) for r in c.execute('SELECT * FROM dimensions WHERE owner=? ORDER BY number',(OWNER,))]
 
+def source_matches(c,value):
+    """Read-only lookup across every source link; never fetch the source."""
+    import importer
+    value=url(value)
+    if len(value)>4096: raise ValueError('Source URL is too long')
+    parsed=urlsplit(value)
+    if parsed.hostname not in ('hitomi.la','www.hitomi.la') or parsed.port not in (None,80,443):
+        raise ValueError('Use a Hitomi work or reader URL')
+    gid=importer.gallery_id(value)
+    if not gid: raise ValueError('Use a Hitomi work or reader URL')
+    def key(link):
+        u=urlsplit(link)
+        # Transport and www variations do not create a different source page.
+        return u.path,u.query,u.fragment
+    exact,related={},{}
+    for row in c.execute('SELECT w.id,w.title,l.url FROM works w JOIN links l ON l.work_id=w.id WHERE w.owner=? AND instr(l.url,?)>0 ORDER BY w.title,w.id,l.position',(OWNER,gid)):
+        if importer.gallery_id(row['url'])!=gid: continue
+        item={'id':row['id'],'title':row['title'],'source_url':row['url']}
+        related[row['id']]=item
+        if row['url']==value or key(row['url'])==key(value): exact[row['id']]=item
+    return {'url':value,'match':'exact' if exact else 'gallery' if related else 'none','matches':list((exact or related).values())}
+
 def entity_data(c,row):
     out=dict(row)
     out['aliases']=[a[0] for a in c.execute('SELECT name FROM aliases WHERE entity_id=? ORDER BY name',(out['id'],))]

@@ -166,10 +166,14 @@ class Handler(BaseHTTPRequestHandler):
                     result.append({'label':e['display_name'],'field':f,'value':e['name'],'detail':e['kind']+' / '+e['gender'] if e['kind']=='tag' else e['kind']})
                 for d in db.dimensions(c):
                     if text.casefold() in d['name'].casefold() or text.casefold() in 'rating'+str(d['number']): result.append({'label':d['name'],'field':'rating'+str(d['number']),'value':'>=1','detail':f'1–{d["maximum"]}'})
+            elif action=='source-check' and self.command=='POST': result=db.source_matches(c,data.get('url',''))
             elif action=='import' and self.command=='POST':
                 result=importer.import_url(data['url'])
                 title=result.get('title','').strip()
-                if title and c.execute('SELECT 1 FROM works WHERE owner=? AND title=? AND id<>?',(db.OWNER,title,data.get('exclude',''))).fetchone(): raise ValueError('Duplicate title; import skipped: '+title)
+                if title and c.execute('SELECT 1 FROM works WHERE owner=? AND title=? AND id<>?',(db.OWNER,title,data.get('exclude',''))).fetchone():
+                    if data.get('allow_duplicate_title') is True:
+                        result.setdefault('warnings',[]).append('This title already exists; change it before saving')
+                    else: raise ValueError('Duplicate title; import skipped: '+title)
                 result['ambiguities']=[]
                 for kind in ('tag','author','circle','series','character'):
                     for item in result.get(kind,[]):

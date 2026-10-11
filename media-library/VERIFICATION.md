@@ -1,5 +1,11 @@
 # Verification record — 2026-10-11
 
+## External source entry — 2026-10-12
+
+54 Python regression tests pass: 34 core, 12 HTTP/job, 8 cover/cache. New checks cover all-source lookup, exact/related page discrimination, multiple registrations, unsupported/unsafe URLs, no remote fetch or opened-at change during lookup, token protection, and duplicate-title preview with unchanged save uniqueness. `node test_source_flow.mjs` verifies actual source-flow functions for direct opening, related-page dialog choices/cancel/new import, full URL preservation, no automatic saving, and ignoring stale import responses. It also executes the generated bookmarklet in a sandbox to check its target, fragment/query encoding, unsupported source rejection, and unsafe target rejection. JavaScript syntax and patch whitespace checks pass.
+
+No connected browser was available in this session, so rendered UI, clipboard/drag setup, actual bookmarklet execution in Android Brave, and mobile layout have not been verified for this feature. A pasted-URL fallback is provided; no claim of verified native Android share-sheet or extension integration is made. QA uses a separate database and fictional metadata without remote image fetching.
+
 ## Bulk metadata clearing and linked-page covers
 
 The updated suite passes 50 tests: 32 core, 10 HTTP/job, and 8 relay/cache checks. New cases verify per-kind association clearing preserves dictionary records and other works, one-based reader-page and spread selection, original first-page behavior, invalid/out-of-range fragments, missing hashes, and the interior-page thumbnail format. JavaScript syntax checks pass.
