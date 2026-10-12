@@ -174,6 +174,28 @@ class ServerTests(unittest.TestCase):
             backup=db.backup(Path(self.temp.name)/'backups')
             self.assertNotIn(image,backup.read_bytes())
             self.assertFalse(any(p.suffix in ('.webp','.avif','.jpg') for p in Path(self.temp.name).rglob('*')))
+    def test_saved_cover_change_reaches_detail_gallery_and_relay(self):
+        from urllib.parse import quote
+        first='https://tn.hitomi.la/webpbigtn/3/12/'+'0'*61+'123.webp'
+        second='https://tn.hitomi.la/webpbigtn/6/45/'+'0'*61+'456.webp'
+        _,work=self.request('works','POST',{'title':'Changed cover fixture','cover':first})
+        def fetch(url):
+            return 'image/webp',b'new-cover' if '456.webp' in url else b'old-cover'
+        def read_cover(revision):
+            path=f'http://127.0.0.1:{self.port}/api/works/{work["id"]}/cover?v='+quote(revision,safe='')
+            with urlopen(path,timeout=10) as response:
+                self.assertIn('no-store',response.headers['Cache-Control'])
+                return response.read()
+        with patch('cover_relay.CACHE',cover_relay.MemoryCache()),patch('importer.thumbnail_routes',return_value=(0,set(),0)),patch('cover_relay.fetch_image',side_effect=fetch) as upstream:
+            self.assertEqual(read_cover(first),b'old-cover')
+            status,saved=self.request('works/'+work['id'],'PUT',{'title':work['title'],'cover':second})
+            self.assertEqual(status,200);self.assertEqual(saved['cover'],second)
+            self.assertEqual(self.request('works/'+work['id'])[1]['cover'],second)
+            gallery=self.request('works?q=title:%22Changed%20cover%20fixture%22')[1]
+            self.assertEqual(gallery['items'][0]['cover'],second)
+            self.assertEqual(read_cover(second),b'new-cover')
+            self.assertEqual(read_cover('https://evil.test/ignored'),b'new-cover')
+            self.assertEqual(upstream.call_count,2) # Cached by actual saved image, not query.
     def test_relay_only_fetches_saved_supported_covers(self):
         _,w=self.request('works','POST',{'title':'Unsupported cover test','cover':'http://127.0.0.1/private'})
         with patch('cover_relay.fetch_image') as fetch,patch('importer.fetch') as metadata:

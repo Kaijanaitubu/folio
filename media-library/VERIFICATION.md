@@ -123,3 +123,13 @@ A mocked, isolated fixture server verified title replacement at 390×844, the Ja
 ### Tailscale HTTPS enabled (2026-10-12)
 
 The owner enabled Serve/HTTPS in the admin console. `enable-tailscale.ps1` completed successfully with `--bg`; Serve forwards private tailnet HTTPS to `http://127.0.0.1:8765`. Serve status has no public Funnel configuration. Certificate validation remained enabled. HTTPS GET checks passed for the app, manifest, library API (1700 works) and share landing route. A token-protected same-origin source-check POST also returned 200 without changing any work. The real browser rendered Settings over HTTPS with no console errors and the generated bookmarklet uses the HTTPS origin. Smartphone connection and PWA share-sheet registration on Reno5 A / Brave remain to be checked by the user. No claim of a phone-side installation or service-worker activation check is made.
+
+### Owner-confirmed mobile installation and sharing (2026-10-12)
+
+The owner subsequently confirmed smartphone home-screen installation and successful sharing through Chrome. Brave did not list Folio in the share menu on their device. This is a user-reported result, not an automated device test or a claim about every Brave version.
+
+### Saved cover changes (2026-10-12)
+
+The gallery/detail renderer previously used the same `/api/works/ID/cover` image address after changing the saved cover URL. It now includes the encoded saved cover URL as a revision query, giving changed covers a distinct browser image identity. Unrelated edits retain the identity. The server still loads only the database's saved URL; the query cannot select an arbitrary upstream destination. RAM-only relay caching and no-store headers are unchanged.
+
+All 91 Python tests and four Node suites passed. New tests check persisted cover changes in detail/gallery APIs, different upstream bytes after saving, cache reuse by actual image URL, ignored arbitrary revision targets, and the actual shared renderer's image identity. A disposable browser fixture with colored generated images verified old saved cover, changed preview, Save, new detail cover and new gallery cover without reloading between them. Both saved views loaded the new revision successfully. Screenshot: ignored `test-output/cover-update-gallery.png`. No production works or image-storage policy were modified.
