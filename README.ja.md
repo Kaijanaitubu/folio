@@ -19,6 +19,8 @@ python server.py --host 127.0.0.1 --port 8765
 
 ## 開発資料
 
+- [今後の開発・運用ロードマップ（日本語）](media-library/ROADMAP.md) — 新しい要望・提案、決定内容、着手状況、完了をこの資料で管理します。記載された候補が実装承認済みとは限りません。
+
 以下の資料は英語です。
 
 - [要件仕様書](Personal-Media-Database-Requirements-v2.0.md)

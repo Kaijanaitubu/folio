@@ -4,6 +4,8 @@
 
 A working PC-hosted implementation of Personal Media Database Requirements v2.0. Uses Python's standard library, SQLite, and browser JavaScript. No package installation, paid hosting, Node build, or external account is required.
 
+Future requests, hosting options, and implementation status are tracked in the [development roadmap (Japanese)](ROADMAP.md). Update that file as proposals are discussed, approved, implemented, or deferred.
+
 ## Start on this PC
 
 Open PowerShell in this directory and run:

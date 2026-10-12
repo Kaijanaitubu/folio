@@ -19,6 +19,7 @@ This version uses one shared local library without account authentication. Host 
 
 ## Development references
 
+- [Development roadmap and hosting options (Japanese)](media-library/ROADMAP.md) — record new requests, proposals, decisions, status, and completion here; a listed proposal is not approval to implement it.
 - [Requirements specification](Personal-Media-Database-Requirements-v2.0.md)
 - [Verification notes](media-library/VERIFICATION.md)
 - [Thumbnail investigation](media-library/THUMBNAIL-INVESTIGATION.md)
