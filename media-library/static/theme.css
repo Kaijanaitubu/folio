@@ -78,9 +78,10 @@ summary { cursor: pointer; overflow-wrap: anywhere; }
 .search-save::after{content:attr(data-tooltip);position:absolute;top:calc(100% + 7px);left:0;z-index:30;background:var(--ink);color:var(--paper);font-size:12px;padding:7px 10px;border-radius:7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s}
 .search-save:hover::after,.search-save:focus-visible::after{opacity:1}
 .work-card{position:relative;min-width:0}
-.work-check{position:absolute;top:6px;left:6px;z-index:2;display:grid;place-items:center;width:36px;height:36px;border-radius:8px;background:var(--surface);border:1px solid var(--line);box-shadow:0 2px 6px #0003;cursor:pointer}
-.work-check input{width:18px;height:18px;min-height:0;margin:0;accent-color:var(--accent);cursor:pointer}
-.work-check:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.work-check{position:absolute;top:6px;left:6px;z-index:2;display:grid;place-items:center;width:36px;height:36px;cursor:pointer}
+.work-check::before{content:'';position:absolute;width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--line);box-shadow:0 2px 6px #0003;opacity:.5;pointer-events:none}
+.work-check input{position:relative;width:15px;height:15px;min-height:0;margin:0;accent-color:var(--accent);cursor:pointer;opacity:.5}
+.work-check:focus-within::before{outline:2px solid var(--accent);outline-offset:2px}
 .work-selected:before{content:none}
 .selection-actions[hidden]{display:none}
 .selection-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
