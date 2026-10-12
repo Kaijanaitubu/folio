@@ -377,6 +377,8 @@ Import is explicit in New/Edit. Check registered normalized URLs before remote r
 
 Fill empty scalar fields automatically; use the existing replacement checkboxes for conflicting title, cover, category, language and page count. For author, circle, tag, series and character fields, offer per-field Overwrite / Merge / Keep, defaulting to Merge. Empty existing fields are filled; empty incoming fields leave existing values unchanged regardless of mode. Overwrite replaces associations with the complete imported set; Merge adds only missing identities; Keep preserves existing values. Never delete the metadata dictionary or modify ratings, review or purchase state.
 
+Equal imported fields are unchanged and omitted from the replacement dialog. Compare metadata as resolved identity sets, ignoring order and duplicates but preserving tag gender. Preserve existing order/display data for equal sets. If every importable field is equal or chosen modes produce no actual changes, show No information to change and retain the draft without re-rendering.
+
 Keep all changes in the draft until Save. Cancellation, failure or stale responses leave the draft unchanged. A user-entered title is preserved unless explicitly replaced. Source URLs are not rewritten. Partial metadata is usable. See [implementation specification](media-library/IMPORT-SPEC.md).
 
 ### 10.3 Bookmark HTML import
@@ -387,7 +389,7 @@ Choose one job-wide title preference: Source title first (default) or Bookmark n
 
 Skip normalized URLs already registered in any source link or repeated in the batch, rechecking before retrieval and inside the save transaction. Same-title results create separate works; never update an existing work. Another page of the same Hitomi gallery is allowed with a warning. Commit each work, immutable bookmark provenance and final item result atomically.
 
-Store original bookmark name, source URL, source title, folder, title preference and import time separately from editable link labels. Preserve this history during normal saves and reimport. Show original names as title candidates only while editing the title. Backfill recoverable successful historical job labels; do not infer unavailable names. Legacy import time uses the recorded job start time.
+Store original bookmark name, source URL, source title, folder, title preference and import time separately from editable link labels. Preserve this history during normal saves and reimport. Show original names as title candidates only while editing the title. Tapping/clicking/keyboard-activating a candidate replaces the entire draft title; it does not append or save automatically. Backfill recoverable successful historical job labels; do not infer unavailable names. Legacy import time uses the recorded job start time.
 
 Show progress and durable Added / Skipped registered URL / Unsupported / Failed / Needs review results. Summarize same-title and related-page warnings in expandable final reports with authors and primary links. Keep legacy duplicate-title skip reports readable.
 

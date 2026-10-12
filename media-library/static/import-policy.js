@@ -1,8 +1,21 @@
 export const metadataKinds=['author','circle','tag','series','character'];
+const scalarKinds=['title','cover','category','language','pages'];
+export function sameMetadataItem(a,b){
+ return a.id&&b.id?a.id===b.id:a.name===b.name&&(a.gender||'neutral')===(b.gender||'neutral');
+}
+export function sameMetadataSet(a=[],b=[]){
+ const unique=items=>items.filter((item,i)=>!items.slice(0,i).some(old=>sameMetadataItem(old,item)));
+ const left=unique(a),right=unique(b);
+ return left.length===right.length&&left.every(item=>right.some(other=>sameMetadataItem(item,other)));
+}
+export function hasImportedChanges(draft,incoming){
+ return scalarKinds.some(key=>incoming[key]!==''&&incoming[key]!=null&&draft[key]!==incoming[key])||
+  metadataKinds.some(key=>incoming[key]?.length&&!sameMetadataSet(draft[key],incoming[key]));
+}
 export function mergeMetadata(existing,incoming,mode='merge'){
- if(!incoming?.length||mode==='keep'&&existing.length)return [...existing];
+ if(!incoming?.length||mode==='keep'&&existing.length||sameMetadataSet(existing,incoming))return existing;
  const result=mode==='overwrite'||!existing.length?[]:[...existing];
- for(const item of incoming)if(!result.some(old=>item.id&&old.id===item.id||old.name===item.name&&(old.gender||'neutral')===(item.gender||'neutral')))result.push(item);
+ for(const item of incoming)if(!result.some(old=>sameMetadataItem(old,item)))result.push(item);
  return result;
 }
 export function applyImported(draft,incoming,replacements=[],modes={}){

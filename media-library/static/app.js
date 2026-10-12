@@ -1,4 +1,4 @@
-import {applyImported,metadataKinds} from './import-policy.js';
+import {applyImported,metadataKinds,sameMetadataSet,hasImportedChanges} from './import-policy.js';
 import {en,ja} from './i18n.js';
 import {localizeError} from './errors.js';
 import {bookmarklet} from './source-link.js';
@@ -108,12 +108,20 @@ async function metadataEditor(item,kind,onSave){
 function summaryCards(matches){return matches.map(w=>`<div class="import-match"><a href="#/work/${esc(w.id)}" target="_blank" rel="noopener"><b>${esc(w.title)}</b></a><small>${esc(t('author'))}: ${esc((w.authors||[]).join(', ')||t('notSpecified'))}</small><small>${esc(w.primary_url||w.source_url||t('notSpecified'))}</small></div>`).join('')}
 function bindBookmarkTitles(){
  const input=$('[data-field="title"]'),panel=$('#bookmark-title-candidates');
+ const editing=draft;let selecting=false;
  const names=[...new Set((draft.bookmark_names||[]).map(s=>s.trim()).filter(Boolean))];
  if(!names.length)return;
  panel.innerHTML=`<small class="muted">${esc(t('bookmarkTitleCandidates'))}</small>`+names.map((name,i)=>`<button type="button" class="btn ghost" data-bookmark-title="${i}">${esc(name)}</button>`).join('');
  input.addEventListener('focus',()=>panel.hidden=false);
- input.addEventListener('blur',()=>panel.hidden=true);
- $$('[data-bookmark-title]',panel).forEach(b=>{b.onpointerdown=e=>e.preventDefault();b.onclick=()=>{input.value=names[Number(b.dataset.bookmarkTitle)];draft.title=input.value;input.focus()}});
+ input.addEventListener('blur',e=>{if(!selecting&&!panel.contains(e.relatedTarget))panel.hidden=true});
+ panel.addEventListener('focusout',e=>{if(!selecting&&e.relatedTarget!==input&&!panel.contains(e.relatedTarget))panel.hidden=true});
+ $$('[data-bookmark-title]',panel).forEach(b=>{
+  const apply=()=>{selecting=false;if(draft!==editing||!input.isConnected)return;input.value=names[Number(b.dataset.bookmarkTitle)];editing.title=input.value;input.focus({preventScroll:true})};
+  b.onpointerdown=e=>{if(e.button!==0)return;selecting=true;e.preventDefault()};
+  b.onpointerup=e=>{if(e.button!==0)return;e.preventDefault();apply()};
+  b.onpointercancel=()=>{selecting=false;if(document.activeElement!==input&&!panel.contains(document.activeElement))panel.hidden=true};
+  b.onclick=apply;
+ });
 }
 async function interactiveImport(id,sourceDraft=false){
  const activeDraft=draft,importVersion=routeVersion;
@@ -126,18 +134,19 @@ async function interactiveImport(id,sourceDraft=false){
   const incoming=await api('import','POST',{url:link.url,exclude:id||''});
   const current=()=>draft===activeDraft&&routeVersion===importVersion;
   if(!current())return;
-  if(incoming.title_matches?.length||!sourceDraft&&incoming.related_matches?.length){
-   const accepted=await new Promise(resolve=>{modal(`<h2>${esc(t('importWarnings'))}</h2>${incoming.title_matches?.length?`<p>${esc(t('sameTitleHint'))}</p>${summaryCards(incoming.title_matches)}`:''}${!sourceDraft&&incoming.related_matches?.length?`<p>${esc(t('sourceRelatedHint'))}</p>${summaryCards(incoming.related_matches)}`:''}<div class="actions">${btn(t('cancel'),'import-warning-cancel')}${btn(t('continueImport'),'import-warning-continue','primary')}</div>`);$('#import-warning-cancel').onclick=()=>{closeModal();resolve(false)};$('#import-warning-continue').onclick=()=>{closeModal();resolve(true)};dialog.oncancel=()=>resolve(false)});
-   if(!accepted||!current())return;
-  }
   for(const ambiguity of incoming.ambiguities||[]){
    const selected=await new Promise(resolve=>{modal(`<h2>${esc(t('selectAlias'))}</h2><p>${esc(ambiguity.name)}</p><div class="stack">${ambiguity.choices.map(c=>`<button class="btn" data-alias-id="${c.id}">${esc(displayName(c))} · ${esc(t(c.gender))}</button>`).join('')}</div>${btn(t('cancel'),'alias-cancel')}`);$$('[data-alias-id]').forEach(b=>b.onclick=()=>{closeModal();resolve(ambiguity.choices.find(c=>c.id===b.dataset.aliasId))});$('#alias-cancel').onclick=()=>{closeModal();resolve(null)};dialog.oncancel=()=>resolve(null)});
    if(!selected||!current())return;
    for(let i=0;i<incoming[ambiguity.kind].length;i++){const e=incoming[ambiguity.kind][i];if(e.name===ambiguity.name&&(e.gender||'neutral')===ambiguity.gender)incoming[ambiguity.kind][i]=selected}
   }
+  if(!hasImportedChanges(draft,incoming)){toast(t('importNoChanges')+(incoming.warnings?.length?' · '+incoming.warnings.map(w=>localizeError(w,lang)).join('; '):''));return}
+  if(incoming.title_matches?.length||!sourceDraft&&incoming.related_matches?.length){
+   const accepted=await new Promise(resolve=>{modal(`<h2>${esc(t('importWarnings'))}</h2>${incoming.title_matches?.length?`<p>${esc(t('sameTitleHint'))}</p>${summaryCards(incoming.title_matches)}`:''}${!sourceDraft&&incoming.related_matches?.length?`<p>${esc(t('sourceRelatedHint'))}</p>${summaryCards(incoming.related_matches)}`:''}<div class="actions">${btn(t('cancel'),'import-warning-cancel')}${btn(t('continueImport'),'import-warning-continue','primary')}</div>`);$('#import-warning-cancel').onclick=()=>{closeModal();resolve(false)};$('#import-warning-continue').onclick=()=>{closeModal();resolve(true)};dialog.oncancel=()=>resolve(false)});
+   if(!accepted||!current())return;
+  }
   const singles=['title','cover','category','language','pages'];
   const conflicts=singles.filter(k=>draft[k]!==''&&draft[k]!=null&&incoming[k]!==''&&incoming[k]!=null&&draft[k]!==incoming[k]);
-  const multi=metadataKinds.filter(k=>draft[k]?.length&&incoming[k]?.length);
+  const multi=metadataKinds.filter(k=>draft[k]?.length&&incoming[k]?.length&&!sameMetadataSet(draft[k],incoming[k]));
   let choices={replacements:[],modes:{}};
   if(conflicts.length||multi.length){
    choices=await new Promise(resolve=>{
@@ -149,7 +158,9 @@ async function interactiveImport(id,sourceDraft=false){
    });
    if(!choices||!current())return;
   }
-  Object.assign(draft,applyImported(draft,incoming,choices.replacements,choices.modes));
+  const updated=applyImported(draft,incoming,choices.replacements,choices.modes);
+  if(!hasImportedChanges(draft,updated)){toast(t('importNoChanges'));return}
+  Object.assign(draft,updated);
   toast(t('importDone')+(incoming.warnings?.length?' · '+incoming.warnings.map(w=>localizeError(w,lang)).join('; '):''));edit(id,true);
  }catch(e){
   if(draft===activeDraft&&routeVersion===importVersion){

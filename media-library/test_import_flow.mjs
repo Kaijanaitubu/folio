@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 const load=async name=>import('data:text/javascript;base64,'+Buffer.from(readFileSync(new URL('static/'+name,import.meta.url),'utf8')).toString('base64'));
-const {applyImported,mergeMetadata,metadataKinds}=await load('import-policy.js');
+const {applyImported,mergeMetadata,metadataKinds,sameMetadataSet,hasImportedChanges}=await load('import-policy.js');
 const {en,ja}=await load('i18n.js');
 const tag=(name,gender='neutral',id)=>({name,gender,...id?{id}:{}});
 const old=[tag('A','female','idA'),tag('B')],incoming=[tag('Alias','female','idA'),tag('A','male','idM')];
@@ -19,7 +19,7 @@ const code=app.slice(app.indexOf('function summaryCards('),app.indexOf('\nlet me
 const work=()=>({title:'Existing title',cover:'',pages:5,category:'',language:'',author:[tag('Old author')],circle:[],tag:structuredClone(old),series:[],character:[],ratings:{quality:4},review:'Keep review',bought:true,links:[{url:'https://hitomi.la/reader/1.html'}],bookmark_names:['Original name']});
 const imported=()=>({title:'New title',cover:'https://example.org/cover',pages:8,author:[tag('New author')],tag:structuredClone(incoming),series:[tag('Series')],circle:[],character:[],warnings:[],ambiguities:[],title_matches:[]});
 function setup(language='en'){
- const nodes=new Map(),context={draft:work(),routeVersion:1,applyImported,metadataKinds,displayName:e=>e.name,esc:s=>String(s).replaceAll('<','&lt;'),t:k=>(language==='ja'?ja:en)[k]||k,btn:()=>'',dialog:{},localizeError:s=>s,modal:html=>context.html=html,closeModal:()=>{},api:async()=>structuredClone(context.incoming),edit:()=>context.edited=true,toast:()=>{},error:(_,e)=>{throw e}};
+ const nodes=new Map(),context={draft:work(),routeVersion:1,applyImported,metadataKinds,sameMetadataSet,hasImportedChanges,displayName:e=>e.name,esc:s=>String(s).replaceAll('<','&lt;'),t:k=>(language==='ja'?ja:en)[k]||k,btn:()=>'',dialog:{},localizeError:s=>s,modal:html=>context.html=html,closeModal:()=>{},api:async()=>structuredClone(context.incoming),edit:()=>context.edited=true,toast:text=>context.lastToast=text,error:(_,e)=>{throw e}};
  context.incoming=imported();context.$=s=>{if(!nodes.has(s))nodes.set(s,{isConnected:true});return nodes.get(s)};
  context.$$=s=>s==='[data-import-mode]'?context.modes||[]:s==='[data-replace]:checked'?context.replacements||[]:context.aliasButtons||[];
  vm.createContext(context);vm.runInContext(code,context);return {context,nodes};
@@ -59,4 +59,67 @@ for(const language of ['en','ja']){
  const pending=context.interactiveImport('work');await tick();nodes.get('#alias-cancel').onclick();await pending;
  assert.equal(JSON.stringify(context.draft),before);
 }
-console.log('Import flow checks passed: EN/JA, overwrite/merge/keep, empty fields, stable ratings/notes, same-title warning, cancellation and stale responses.');
+// Equality uses resolved identity, ignores order/duplicates, and keeps gender distinct.
+assert.ok(sameMetadataSet(old,[...old].reverse()));
+assert.ok(sameMetadataSet(old,[old[1],old[0],old[0]]));
+assert.ok(sameMetadataSet([old[0]],[tag('Alias','female','idA')]));
+assert.ok(!sameMetadataSet([tag('A','female')],[tag('A','male')]));
+assert.ok(!sameMetadataSet([tag('A','female','one')],[tag('A','female','two')]));
+assert.equal(mergeMetadata(old,[...old].reverse(),'overwrite'),old);
+for(const language of ['en','ja']){
+ const {context}=setup(language),original=context.draft,before=JSON.stringify(original);
+ context.incoming=structuredClone(original);context.incoming.tag.reverse();
+ context.incoming.title_matches=[{id:'same-title',title:original.title}];
+ await context.interactiveImport('work');
+ assert.equal(context.draft,original);assert.equal(JSON.stringify(context.draft),before);
+ assert.equal(context.html,undefined);assert.equal(context.edited,undefined);
+ assert.equal(context.lastToast,language==='ja'?'変更する情報はありません':'No information to change');
+}
+{
+ const {context,nodes}=setup();
+ context.incoming.tag=[...context.draft.tag].reverse();
+ const originalTags=context.draft.tag,pending=context.interactiveImport('work');await tick();
+ assert.ok(!context.html.includes('data-import-mode="tag"'));assert.ok(context.html.includes('data-import-mode="author"'));
+ nodes.get('#replacement-apply').onclick();await pending;assert.equal(context.draft.tag,originalTags);
+}
+{
+ const {context,nodes}=setup();context.incoming={tag:[old[0]]};
+ const before=JSON.stringify(context.draft),pending=context.interactiveImport('work');await tick();
+ // Default merge adds nothing; after confirming, report no changes and keep the draft.
+ nodes.get('#replacement-apply').onclick();await pending;
+ assert.equal(JSON.stringify(context.draft),before);assert.equal(context.edited,undefined);
+ assert.equal(context.lastToast,en.importNoChanges);
+}
+// Simulate touch blur before click, keyboard activation, and stale editor handlers.
+{
+ const {context}=setup();context.draft.author[0].id='existing-author';
+ context.incoming=structuredClone(context.draft);context.incoming.author=[{name:'Shared alias'}];
+ context.incoming.ambiguities=[{kind:'author',name:'Shared alias',gender:'neutral',choices:[context.draft.author[0]]}];
+ context.aliasButtons=[{dataset:{aliasId:'existing-author'}}];
+ const before=JSON.stringify(context.draft),pending=context.interactiveImport('work');await tick();
+ context.aliasButtons[0].onclick();await pending;
+ assert.equal(JSON.stringify(context.draft),before);assert.equal(context.lastToast,en.importNoChanges);assert.equal(context.edited,undefined);
+}
+function bookmarkSetup(){
+ const {context}=setup(),handlers={},input={value:'Typed title',isConnected:true,addEventListener:(name,fn)=>handlers[name]=fn,focus:()=>{context.document.activeElement=input;handlers.focus()}},button={dataset:{bookmarkTitle:'0'}};
+ const panel={hidden:true,addEventListener:(name,fn)=>handlers['panel-'+name]=fn,contains:node=>node===button};
+ context.document={activeElement:input};context.$=s=>s==='[data-field="title"]'?input:panel;context.$$=()=>[button];
+ context.bindBookmarkTitles();handlers.focus();return {context,input,panel,button,handlers};
+}
+{
+ const {context,input,panel,button,handlers}=bookmarkSetup();let prevented=false;
+ button.onpointerdown({button:0,preventDefault:()=>prevented=true});handlers.blur({relatedTarget:null});
+ assert.ok(prevented);assert.equal(panel.hidden,false);
+ button.onpointerup({button:0,preventDefault:()=>{}});
+ assert.equal(input.value,'Original name');assert.equal(context.draft.title,'Original name');
+ assert.equal(context.edited,undefined);assert.equal(panel.hidden,false);
+}
+{
+ const {context,input,panel,button,handlers}=bookmarkSetup();handlers.blur({relatedTarget:button});assert.equal(panel.hidden,false);
+ button.onclick();assert.equal(input.value,'Original name');assert.equal(context.draft.title,'Original name');
+ handlers['panel-focusout']({relatedTarget:null});assert.equal(panel.hidden,true);
+}
+{
+ const {context,input,button}=bookmarkSetup();context.draft=work();button.onclick();assert.equal(input.value,'Typed title');
+}
+console.log('Import flow checks passed: EN/JA, overwrite/merge/keep, unchanged resolved sets and scalar values, no-op imports, mobile pointer/blur selection, keyboard selection, cancellation and stale responses.');
