@@ -88,7 +88,12 @@ summary { cursor: pointer; overflow-wrap: anywhere; }
 .selection-primary,.selection-summary{display:flex;align-items:center;gap:8px}
 .selection-summary{font-size:13px;color:var(--muted)}
 .selection-primary .iconbtn{border:1px solid var(--line);background:var(--surface)}
+.utility-bar #selection-exit{position:absolute;right:7px;bottom:calc(100% + 12px);width:44px;height:44px;min-height:44px;padding:0;background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:0 3px 12px #0004}
+.utility-bar #selection-exit:hover{background:var(--soft);color:var(--accent)}
+.utility-bar #selection-exit[hidden]{display:none}
 @media(max-width:700px){
+ .utility-bar #selection-exit{right:12px}
+ :root[data-utility-focus="search"] .utility-bar #selection-exit{bottom:auto;top:calc(100% + 12px)}
  .query-actions .active-query{max-width:100%}
  .library-toolbar select{max-width:130px}
  .selection-primary{gap:6px;max-width:100%}

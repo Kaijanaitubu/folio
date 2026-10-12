@@ -313,6 +313,8 @@ function mountLibraryFeatures(){
  if(selectionHash!==activeLibraryHash){resetSelection();selectionHash=activeLibraryHash}
  const query=$('.active-query');query.outerHTML=`<div class="query-actions">${query.outerHTML}<button type="button" id="save-search" class="iconbtn search-save" aria-label="${esc(t('saveSearch'))}" title="${esc(t('saveSearch'))}" data-tooltip="${esc(t('saveSearch'))}" aria-pressed="false">${icon('bookmark')}</button></div>`;
  $('.search-help').insertAdjacentHTML('afterend','<div id="selection-actions" class="feature-actions selection-actions" hidden></div>');
+ $('.utility-bar').insertAdjacentHTML('beforeend',`<button type="button" id="selection-exit" class="iconbtn selection-floating-exit" aria-label="${esc(t('exitSelection'))}" title="${esc(t('exitSelection'))}" hidden>${icon('x')}</button>`);
+ $('#selection-exit').onclick=()=>{resetSelection();bindSelectionCards()};
  matchingSavedSearch=null;
  $('#save-search').onclick=()=>searchEditor(matchingSavedSearch,{query:route().params.get('q')||'',sort:$('#sort').value});
  refreshSearchSaveButton().catch(e=>toast(e.message));
@@ -336,11 +338,11 @@ function toggleWorkSelection(id,checked){if(!selecting){selecting=true;selection
 function bindSelectionCards(){
  const actions=$('#selection-actions');if(!actions)return;
  actions.hidden=!selecting;
- actions.innerHTML=selecting?`<div class="selection-primary"><button type="button" id="selection-exit" class="iconbtn" aria-label="${esc(t('exitSelection'))}" title="${esc(t('exitSelection'))}">${icon('x')}</button><button type="button" id="select-visible" class="btn" aria-label="${esc(t('selectVisible'))}" title="${esc(t('selectVisible'))}">${esc(t('selectVisibleShort'))}</button><button type="button" id="select-results" class="btn" aria-label="${esc(t('selectResults'))}" title="${esc(t('selectResults'))}">${esc(t('selectResultsShort'))}</button></div><div class="selection-summary"><span role="status">${esc(t('selectedCount'))}: ${selectedWorks.size}</span>${btn(t('batchEdit'),'batch-edit','primary')}</div>`:'';
+ $('#selection-exit').hidden=!selecting;
+ actions.innerHTML=selecting?`<div class="selection-primary"><button type="button" id="select-visible" class="btn" aria-label="${esc(t('selectVisible'))}" title="${esc(t('selectVisible'))}">${esc(t('selectVisibleShort'))}</button><button type="button" id="select-results" class="btn" aria-label="${esc(t('selectResults'))}" title="${esc(t('selectResults'))}">${esc(t('selectResultsShort'))}</button></div><div class="selection-summary"><span role="status">${esc(t('selectedCount'))}: ${selectedWorks.size}</span>${btn(t('batchEdit'),'batch-edit','primary')}</div>`:'';
  $$('[data-work-check]').forEach(input=>{const id=input.dataset.workCheck;input.checked=selectedWorks.has(id);input.closest('.work-card').classList.toggle('work-selected',input.checked);input.onchange=()=>toggleWorkSelection(id,input.checked)});
  $$('.card').forEach(a=>{const id=a.getAttribute('href').split('/').pop();a.onclick=e=>{if(selecting){e.preventDefault();toggleWorkSelection(id,!selectedWorks.has(id))}else captureLibrary()}});
  if(!selecting)return;
- $('#selection-exit').onclick=()=>{resetSelection();bindSelectionCards()};
  $('#select-visible').onclick=()=>{libraryItems.forEach(w=>selectedWorks.add(w.id));bindSelectionCards()};
  $('#select-results').onclick=safely(async()=>{const b=$('#select-results');b.disabled=true;try{const hash=activeLibraryHash,version=selectionVersion;const r=await api('works?ids=1&q='+encodeURIComponent(route().params.get('q')||''));if(route().path!=='/library'||activeLibraryHash!==hash||!selecting||version!==selectionVersion)return;r.ids.forEach(id=>selectedWorks.add(id));bindSelectionCards()}finally{if(b.isConnected)b.disabled=false}});
  $('#batch-edit').disabled=!selectedWorks.size;
