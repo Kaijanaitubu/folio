@@ -27,8 +27,33 @@ def jobs(c,jid=None):
     rows=[dict(r) for r in c.execute('SELECT * FROM jobs WHERE owner=?'+(' AND id=?' if jid else '')+' ORDER BY created DESC',([db.OWNER,jid] if jid else [db.OWNER]))]
     for r in rows:
         r['counts']={s['status']:s['n'] for s in c.execute('SELECT status,count(*) n FROM job_items WHERE job_id=? GROUP BY status',(r['id'],))}
-        if jid: r['items']=[dict(i) for i in c.execute('SELECT * FROM job_items WHERE job_id=? ORDER BY rowid',(jid,))]
+        if jid:
+            r['items']=[dict(i) for i in c.execute('SELECT * FROM job_items WHERE job_id=? ORDER BY rowid',(jid,))]
+            for item in r['items']: item['warnings']=json.loads(item.pop('warnings_json'))
     return rows[0] if jid and rows else rows
+
+def process_import_item(item):
+    # Check before any remote request, then recheck atomically when saving.
+    with db.transaction() as c:
+        matches=db.exact_sources(c,item['url'])
+        mode=c.execute('SELECT title_mode FROM jobs WHERE id=?',(item['job_id'],)).fetchone()[0]
+        if matches:
+            c.execute("UPDATE job_items SET status='duplicate_url',warnings_json=? WHERE id=?",(json.dumps({'sources':matches},ensure_ascii=False),item['id']))
+            return
+    data=importer.import_url(item['url'])
+    source_title=str(data.get('title') or '').strip(); bookmark_title=str(item.get('label') or '').strip()
+    title=(bookmark_title or source_title) if mode=='bookmark' else (source_title or bookmark_title)
+    if not title: raise ValueError('No title retrieved; retry or add manually')
+    data['title']=title; data['links']=[{'url':item['url'],'is_primary':True}]
+    with db.transaction() as c:
+        c.execute('BEGIN IMMEDIATE')
+        job=c.execute('SELECT status FROM jobs WHERE id=?',(item['job_id'],)).fetchone()
+        if not job or job[0]!='running':
+            c.execute("UPDATE job_items SET status='cancelled' WHERE id=?",(item['id'],)); return
+        warnings={'titles':db.title_matches(c,title),'related':db.source_matches(c,item['url'])['matches']}
+        result=db.save_work(c,data); wid=result['id']
+        db.record_bookmark(c,wid,item,source_title,mode)
+        c.execute("UPDATE job_items SET status='added',title=?,message=?,work_id=?,warnings_json=? WHERE id=?",(title,'; '.join(data.get('warnings',[])),wid,json.dumps(warnings,ensure_ascii=False),item['id']))
 
 def worker():
     last_backup=0
@@ -46,28 +71,19 @@ def worker():
         if not item: STOP.wait(1); continue
         status='failed'; title=''; message=''; wid=None
         try:
-            data=importer.import_url(item['url']); title=data['title'].strip()
-            if not title: raise ValueError('No title retrieved; retry or add manually')
-            data['links']=[{'url':item['url'],'is_primary':True}]
-            # Work and final item status are committed together; restart cannot duplicate a saved item.
-            with db.transaction() as c:
-                existing=c.execute('SELECT 1 FROM works WHERE owner=? AND title=?',(db.OWNER,title)).fetchone()
-                if existing: status='duplicate_title'
-                else:
-                    result=db.save_work(c,data); wid=result['id']; status='added'
-                    message='; '.join(data.get('warnings',[]))
-                    if result['warnings']: message+=' Shared URL: '+', '.join(result['warnings'])
-                c.execute('UPDATE job_items SET status=?,title=?,message=?,work_id=? WHERE id=?',(status,title,message,wid,item['id']))
+            process_import_item(item)
         except Exception as e:
             message=str(e)
             status='needs_review' if 'Ambiguous alias' in message else 'failed'
-            if 'UNIQUE constraint failed: works.owner, works.title' in message: status='duplicate_title'
+            if isinstance(e,db.DuplicateSource): status='duplicate_url'
             with db.transaction() as c:
                 attempts=c.execute('SELECT attempts FROM job_items WHERE id=?',(item['id'],)).fetchone()[0]
                 transient=any(s in message for s in ('429','503','timed out','Timeout'))
                 if transient and attempts<3:
                     status='pending'
                 c.execute('UPDATE job_items SET status=?,title=?,message=? WHERE id=?',(status,title,message,item['id']))
+                if isinstance(e,db.DuplicateSource):
+                    c.execute('UPDATE job_items SET warnings_json=? WHERE id=?',(json.dumps({'sources':e.matches},ensure_ascii=False),item['id']))
             if status=='pending': STOP.wait(min(30,2**attempts*2))
         STOP.wait(0.5)
 
@@ -141,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
                 elif self.command in ('POST','PUT'):
                     if ident and not c.execute('SELECT 1 FROM works WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone(): raise ValueError('Entry not found')
                     result=db.save_work(c,data,ident)
-                elif self.command=='DELETE': c.execute('DELETE FROM works WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
+                elif self.command=='DELETE': db.delete_work(c,ident); result={'ok':True}
             elif action=='entities':
                 if self.command=='GET':
                     if ident:
@@ -169,12 +185,12 @@ class Handler(BaseHTTPRequestHandler):
                     if text.casefold() in d['name'].casefold() or text.casefold() in 'rating'+str(d['number']): result.append({'label':d['name'],'field':'rating'+str(d['number']),'value':'>=1','detail':f'1–{d["maximum"]}'})
             elif action=='source-check' and self.command=='POST': result=db.source_matches(c,data.get('url',''))
             elif action=='import' and self.command=='POST':
+                matches=db.exact_sources(c,data['url'],data.get('exclude',''))
+                if matches: raise db.DuplicateSource(matches)
                 result=importer.import_url(data['url'])
                 title=result.get('title','').strip()
-                if title and c.execute('SELECT 1 FROM works WHERE owner=? AND title=? AND id<>?',(db.OWNER,title,data.get('exclude',''))).fetchone():
-                    if data.get('allow_duplicate_title') is True:
-                        result.setdefault('warnings',[]).append('This title already exists; change it before saving')
-                    else: raise ValueError('Duplicate title; import skipped: '+title)
+                result['title_matches']=db.title_matches(c,title,data.get('exclude','')) if title else []
+                result['related_matches']=[r for r in db.source_matches(c,data['url'])['matches'] if r['id']!=data.get('exclude','')]
                 result['ambiguities']=[]
                 for kind in ('tag','author','circle','series','character'):
                     for item in result.get(kind,[]):
@@ -184,7 +200,14 @@ class Handler(BaseHTTPRequestHandler):
                         rows=c.execute('SELECT DISTINCT e.* FROM entities e JOIN aliases a ON a.entity_id=e.id WHERE e.owner=? AND e.kind=? AND e.gender=? AND a.name=?',(db.OWNER,kind,item.get('gender','neutral'),item['name'])).fetchall()
                         if len(rows)==1: item.update(db.entity_data(c,rows[0]))
                         if len(rows)>1: result['ambiguities'].append({'kind':kind,'name':item['name'],'gender':item.get('gender','neutral'),'choices':[db.entity_data(c,r) for r in rows]})
-            elif action=='bookmarks' and self.command=='POST': result=importer.bookmarks(data['html'])
+            elif action=='bookmarks' and self.command=='POST':
+                result=importer.bookmarks(data['html'])
+                for item in result:
+                    if item['supported']:
+                        lookup=db.source_matches(c,item['url'])
+                        item['registered']=lookup['match']=='exact'
+                        item['duplicate']=item['duplicate'] or item['registered']
+                        item['related']=lookup['matches'] if lookup['match']=='gallery' else []
             elif action=='covers' and ident=='resolve' and self.command=='POST': result={'url':importer.resolve_thumbnail_url(data['url'])}
             elif action=='jobs':
                 if self.command=='GET': result=jobs(c,ident)
@@ -195,11 +218,17 @@ class Handler(BaseHTTPRequestHandler):
                         c.execute("UPDATE job_items SET status='pending',attempts=0 WHERE job_id=? AND status IN ('failed','needs_review','cancelled')",(ident,)); c.execute("UPDATE jobs SET status='running' WHERE id=? AND owner=?",(ident,db.OWNER))
                     result=jobs(c,ident)
                 elif self.command=='POST':
-                    ident=db.uid(); c.execute('INSERT INTO jobs VALUES(?,?,?,?)',(ident,db.OWNER,'running',db.now())); seen=set()
+                    mode=data.get('title_mode','source')
+                    if mode not in ('source','bookmark'): raise ValueError('Invalid bookmark title preference')
+                    c.execute('BEGIN IMMEDIATE')
+                    ident=db.uid(); c.execute('INSERT INTO jobs(id,owner,status,created,title_mode) VALUES(?,?,?,?,?)',(ident,db.OWNER,'running',db.now(),mode)); seen=set()
                     for item in data.get('items',[]):
                         u=db.url(item['url'])
-                        if not u or u in seen: continue
-                        seen.add(u); status='pending' if importer.gallery_id(u) else 'unsupported'
+                        if not u: continue
+                        key=db.normalize_url(u)
+                        status='pending' if importer.gallery_id(u) else 'unsupported'
+                        if key in seen or db.exact_sources(c,u): status='duplicate_url'
+                        seen.add(key)
                         c.execute('INSERT INTO job_items(id,job_id,url,label,folder,status) VALUES(?,?,?,?,?,?)',(db.uid(),ident,u,str(item.get('label','')),str(item.get('folder','')),status))
                     result={'id':ident}
             elif action=='backup' and self.command=='POST': result={'file':str(db.backup())}
@@ -208,6 +237,7 @@ class Handler(BaseHTTPRequestHandler):
     def run(self):
         try: self.dispatch()
         except cover_relay.RelayError as e: self.send_json({'error':str(e)},502)
+        except db.DuplicateSource as e: self.send_json({'error':str(e),'matches':e.matches},409)
         except sqlite3.IntegrityError as e:
             msg='Duplicate title' if 'works.owner, works.title' in str(e) else 'Duplicate metadata name or invalid association'
             self.send_json({'error':msg},409)

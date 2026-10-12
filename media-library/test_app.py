@@ -25,11 +25,11 @@ class LibraryTests(unittest.TestCase):
     def test_title_only_and_persistence(self):
         w=self.save({'title':'  First  '}); self.assertEqual(w['title'],'First'); self.assertIsNone(w['pages']); self.assertFalse(w['bought'])
         with db.transaction() as c: self.assertEqual(db.get_work(c,w['id'])['title'],'First')
-    def test_exact_title_unique_and_rollback(self):
+    def test_identical_titles_are_separate_works(self):
         self.save({'title':'A'})
-        with self.assertRaises(sqlite3.IntegrityError): self.save({'title':' A '})
+        self.save({'title':' A '})
         self.save({'title':'a'}); self.save({'title':'A!'}); self.save({'title':'A  B'})
-        self.assertEqual(self.search()['total'],4)
+        self.assertEqual(self.search()['total'],5)
     def test_empty_title(self):
         with self.assertRaises(ValueError): self.save({'title':'  '})
     def test_invalid_save_atomic(self):
@@ -153,10 +153,11 @@ class LibraryTests(unittest.TestCase):
             self.assertEqual(db.get_work(c,w['id'])['ratings'][d['id']],2)
             db.save_dimension(c,{'name':'Rename','maximum':3,'symbol':'Heart','gallery':True},d['id'])
             self.assertEqual(db.get_work(c,w['id'])['ratings'][d['id']],2)
-    def test_links_and_duplicate_url_warning(self):
+    def test_links_and_duplicate_url_rejection(self):
         u='https://example.org/chapter?q=one#page3'; self.save({'title':'A','links':[{'url':u,'is_primary':True}]})
-        w=self.save({'title':'B','links':[{'url':u},{'url':'https://example.org/two','is_primary':True}]})
-        self.assertEqual(w['warnings'],['A']);self.assertEqual(w['links'][0]['url'],u);self.assertEqual(w['links'][1]['is_primary'],1)
+        with self.assertRaises(db.DuplicateSource): self.save({'title':'B','links':[{'url':u}]})
+        w=self.save({'title':'B','links':[{'url':'https://example.org/three'},{'url':'https://example.org/two','is_primary':True}]})
+        self.assertEqual(w['warnings'],[]);self.assertEqual(w['links'][1]['is_primary'],1)
         with db.transaction() as c:
             saved=db.save_work(c,w,w['id'])
             self.assertEqual([l['id'] for l in saved['links']],[l['id'] for l in w['links']])
@@ -342,7 +343,7 @@ class LibraryTests(unittest.TestCase):
     def test_backup_restore_roundtrip(self):
         d=self.dimension();w=self.save({'title':'Backup','tag':['tag'],'ratings':{d['id']:4},'links':[{'url':'https://example.org'}]})
         with db.transaction() as c:
-            c.execute('INSERT INTO jobs VALUES(?,?,?,?)',('job','local','running',db.now()));c.execute('INSERT INTO job_items(id,job_id,url,status) VALUES(?,?,?,?)',('item','job','https://hitomi.la/reader/123.html','pending'))
+            c.execute('INSERT INTO jobs(id,owner,status,created) VALUES(?,?,?,?)',('job','local','running',db.now()));c.execute('INSERT INTO job_items(id,job_id,url,status) VALUES(?,?,?,?)',('item','job','https://hitomi.la/reader/123.html','pending'))
         backup=db.backup(Path(self.tmp.name)/'backups'); restored=Path(self.tmp.name)/'restored.sqlite3'
         s=sqlite3.connect(backup);r=sqlite3.connect(restored);s.backup(r);s.close();r.close();db.PATH=restored
         with db.transaction() as c:

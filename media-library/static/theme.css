@@ -58,3 +58,10 @@
  .directory-tabs button{padding:10px;font-size:12px}.directory-row .subtitle{overflow-wrap:anywhere}
  input,textarea,select{scroll-margin-top:90px;scroll-margin-bottom:20px}
 }
+.title-field { min-width: 0; }
+#bookmark-title-candidates { padding: .5rem 0; }
+#bookmark-title-candidates .btn { display: block; text-align: left; overflow-wrap: anywhere; margin-top: .25rem; }
+.import-match, .import-field { display: flex; flex-direction: column; gap: .35rem; padding: .8rem; border: 1px solid var(--line); border-radius: 12px; overflow-wrap: anywhere; }
+.import-match small, .import-field small { color: var(--muted); }
+.bookmark-row details { margin-top: .5rem; }
+summary { cursor: pointer; overflow-wrap: anywhere; }

@@ -7,7 +7,7 @@
 
 **Cover-policy amendment:** 2026-10-11. Supported Hitomi covers now use a memory-only relay as defined in Section 7.2; persistent image storage remains excluded.
 
-**Metadata/mobile amendment:** 2026-10-11. Sections 5 and 8.6 define preferred display aliases, directory navigation/sorting, and mobile keyboard behavior. Title uniqueness remains unchanged; revised duplicate policies and an nhentai importer are proposals only.
+**Metadata/mobile amendment:** 2026-10-11. Sections 5 and 8.6 define preferred display aliases, directory navigation/sorting, and mobile keyboard behavior. The later F-002/F-003/F-013 amendment below supersedes title uniqueness and old import behavior. The nhentai importer remains a proposal.
 
 This document is self-contained. It incorporates the agreed changes to v1.0 and defines the behavior needed to implement and verify the current release. Developers do not need the preceding conversation. Where implementation details were not explicitly selected, this document specifies practical defaults. Frameworks, database products, and the precise visual theme remain engineering choices subject to the requirements below.
 
@@ -48,7 +48,7 @@ Future work must be possible without rebuilding the core entry model: account ow
 3. The PC must be running and awake for access. The UI/documentation must explain this limitation.
 4. Configure listening address and port. Provide startup instructions, LAN access instructions, and narrowly scoped firewall guidance. Do not automatically publish the service to the Internet or change router settings.
 5. This release assumes a trusted LAN. A public deployment requires authentication and authorization before exposure. Optional private remote access, such as Tailscale, is operational guidance rather than a built-in feature.
-6. Store ownership on works, metadata entities, rating dimensions, and import jobs. Use one default owner now. Title uniqueness and metadata dictionaries are scoped to that owner.
+6. Store ownership on works, metadata entities, rating dimensions, and import jobs. Use one default owner now. Source URL identity and metadata dictionaries are scoped to that owner.
 7. Internal IDs must be stable and independent of titles, URLs, names, and external IDs.
 8. Data must survive browser closure, server restart, and application upgrades. Supply versioned database migrations.
 9. No specific framework or database engine is mandated. A durable relational database is appropriate. Separate importer adapters, search parsing, persistence, and presentation.
@@ -56,17 +56,17 @@ Future work must be possible without rebuilding the core entry model: account ow
 
 ## 3. Entry identity and validation
 
-An entry is a library record created by the user manually or through import. The application does not infer edition, translation, chapter, or conceptual-work relationships. Different titles may represent different entries even when source URLs overlap.
+An entry is a library record created by the user manually or through import. The application does not infer edition, translation, chapter, or conceptual-work relationships. Identical titles may represent different entries. Stable internal IDs identify works; normalized source URLs prevent duplicate registration across works, subject to preserving legacy duplicates.
 
-### 3.1 Required title and uniqueness
+### 3.1 Required title and work identity
 
-- Title is the only required field.
-- Trim leading/trailing whitespace before validation and storage. A whitespace-only title is invalid.
-- Compare the remaining text exactly for uniqueness within the owner’s library. Capitalization, punctuation, and internal spaces are significant. Do not case-fold or normalize spelling for this check.
-- Enforce uniqueness atomically in persistence, not only through a pre-save UI check. Select database collation/comparison behavior that satisfies this rule.
-- Edits exclude their own entry ID from duplicate checks.
-- Manual creation or editing with a conflicting title fails validation; retain the user’s form values and show a clear error.
-- An importer result conflicting with another entry’s title is aborted/skipped as defined in section 10. Do not merge works automatically.
+- Title is the only required field. Trim outer whitespace; a whitespace-only title is invalid.
+- Identical titles are allowed. Exact title comparisons are used for import warnings, not work identity.
+- Work IDs are stable internal primary keys. Source links are optional; the primary link is mutable.
+- All source links participate in owner-scoped normalized URL comparison. Reject new duplicate URLs atomically, excluding the edited work's existing links. Preserve legacy collisions without automatic merging or deletion.
+- Individual imports show same-title entries with authors and primary URLs before proceeding. Batches add same-title entries and summarize warnings afterward.
+- Different pages of a Hitomi gallery warn but can register separately. Do not automatically match or update works based on title or gallery ID.
+- [F-002/F-003/F-013 implementation specification](media-library/IMPORT-SPEC.md) defines normalization, legacy migration and API contracts.
 
 ## 4. Work fields
 
@@ -201,7 +201,7 @@ Each link belongs to one work and includes a stable ID, URL, optional label, opt
 - When links exist, exactly one is primary. The first added link becomes primary; the user can change it.
 - Removing the primary link selects the first remaining link by display order; removing the last leaves no primary source.
 - Repeating an identical URL within the same work is prevented as redundant.
-- An identical URL in another work produces a warning but does not block saving, provided titles differ.
+- An equivalent normalized URL in another work blocks new registration. Preserve existing legacy duplicates when editing their unchanged source keys.
 - Preserve the user’s saved URL, including path, query, and fragment. Do not rewrite it to a canonical gallery URL for opening.
 - Importer resolution may derive an external ID or metadata lookup URL separately, without replacing the saved link.
 - Open Source and the detail-page cover open the primary saved URL in a separate browsing context, preserving the app’s navigation state.
@@ -227,7 +227,7 @@ Each link belongs to one work and includes a stable ID, URL, optional label, opt
 
 Provide a bilingual Settings setup for a navigation-only Hitomi bookmarklet and a pasted-URL fallback. Configure the Folio HTTP/HTTPS origin, prohibit credentials, and explain that phones need the PC LAN address. The bookmarklet accepts only Hitomi/www Hitomi pages and preserves the complete current URL in the `/#/source?url=` hash route. Do not expose the library to the source site or fetch arbitrary URLs.
 
-Check all owner-scoped source links without remote access or work writes. One exact source match opens its detail; multiple exact matches require selection. If only other URLs/pages of the same Hitomi gallery ID match, show a dialog containing registered titles and source URLs before navigation. Offer existing entry, cancel, or importing the current link as new. A new draft retains the submitted URL, fetches supported metadata, and is never saved automatically. Preserve the URL on failure. Allow duplicate-title preview with an explicit warning only for this source-entry draft; saving still requires a unique title. Existing interactive/batch duplicate behavior remains unchanged. Late lookup/import responses must not overwrite another route or draft. Validate bookmark execution on the actual mobile browser separately from API/function tests.
+Check all owner-scoped source links without remote access or work writes. One exact source match opens its detail; multiple exact matches require selection. If only other URLs/pages of the same Hitomi gallery ID match, show a dialog containing registered titles and source URLs before navigation. Offer existing entry, cancel, or importing the current link as new. A new draft retains the submitted URL, fetches supported metadata, and is never saved automatically. Preserve the URL on failure. Same-title imports show an explicit warning with authors and primary URLs and can save as separate entries. Registered exact URLs open detail without reimport; different URLs never cause automatic updates. Late lookup/import responses must not overwrite another route or draft. Validate bookmark execution on the actual mobile browser separately from API/function tests.
 
 ### 8.1 Library/home
 
@@ -373,39 +373,25 @@ Provide a Hitomi adapter that recognizes supported URLs, resolves any available 
 
 ### 10.2 Interactive import in entry forms
 
-Import is an optional action within New/Edit. The user chooses a source link or supplies one.
+Import is explicit in New/Edit. Check registered normalized URLs before remote retrieval, excluding the edited work itself. Show same-title matches with authors and primary links; proceeding is allowed. Another Hitomi page warns but is eligible. Resolve ambiguous aliases with the user's choice.
 
-1. Fetch and resolve metadata without changing persisted entry data.
-2. If a retrieved title equals another entry’s title, abort the entire import and show that title in a dialog. Exclude the edited entry itself. Leave the draft unchanged by the aborted metadata result.
-3. Otherwise fill empty single-value fields and append missing multi-value items.
-4. Preserve existing single values. Offer Review replacements for conflicting imported values; only explicit selections overwrite them.
-5. Never alter ratings, review, Bought, or system timestamps.
-6. Keep changes in the form draft until Save. Import does not automatically save a work.
+Fill empty scalar fields automatically; use the existing replacement checkboxes for conflicting title, cover, category, language and page count. For author, circle, tag, series and character fields, offer per-field Overwrite / Merge / Keep, defaulting to Merge. Empty existing fields are filled; empty incoming fields leave existing values unchanged regardless of mode. Overwrite replaces associations with the complete imported set; Merge adds only missing identities; Keep preserves existing values. Never delete the metadata dictionary or modify ratings, review or purchase state.
 
-For a new entry whose user-entered title conflicts with the imported title, preserve the entered title and offer the imported title as a replacement; the final save still enforces uniqueness.
-
-Partial results are accepted. A missing page count or cover must not block import or save. Complete failure displays No metadata could be retrieved and retains manual editing. Unsupported URLs display an explanation and remain usable as saved links.
+Keep all changes in the draft until Save. Cancellation, failure or stale responses leave the draft unchanged. A user-entered title is preserved unless explicitly replaced. Source URLs are not rewritten. Partial metadata is usable. See [implementation specification](media-library/IMPORT-SPEC.md).
 
 ### 10.3 Bookmark HTML import
 
-Provide a batch-import screen accessible from the library/menu. Support the common browser-export bookmark HTML format, including nested folders; never execute uploaded HTML or fetch embedded resources. Extract bookmark labels, URLs, and folder paths as preview data.
+Parse browser-export HTML without executing it or loading embedded resources; preserve nested folders and original labels. Preview unsupported, normalized duplicate, registered and related-page links. Let the user select eligible folders/items.
 
-Workflow:
+Choose one job-wide title preference: Source title first (default) or Bookmark name first. Remember it in the browser and persist it in the job. If the preferred value is blank, use the other; if both are blank, fail for review. Metadata retrieval failures remain failures.
 
-1. Upload and parse the file with configured size/item limits and readable validation errors.
-2. Preview eligible links, unsupported URLs, and duplicate URLs in the upload. Let the user select folders/items.
-3. Deduplicate identical selected URLs within that batch.
-4. Start a persistent server-side job using the Hitomi adapter.
-5. For each selected supported URL, fetch metadata, require a retrieved nonblank title, and check title uniqueness against existing entries and earlier successes in the same job.
-6. If the title already exists, skip the entire item. Do not update the existing work or append its source link.
-7. If there is no retrieved title, the request fails, or entity resolution is ambiguous, skip/report for retry or review. Do not substitute the bookmark label as a title automatically.
-8. Save successful partial results as new entries with the bookmark’s exact URL as primary source. Personal fields start empty/default.
-9. Continue after per-item failures. Show progress and final results: Added, Duplicate title, Unsupported, Failed, and Needs review.
-10. Show a scrollable dialog listing titles skipped for title duplication. Make full results available in the job screen; do not truncate the only copy of a large report.
+Skip normalized URLs already registered in any source link or repeated in the batch, rechecking before retrieval and inside the save transaction. Same-title results create separate works; never update an existing work. Another page of the same Hitomi gallery is allowed with a warning. Commit each work, immutable bookmark provenance and final item result atomically.
 
-Closing/reopening the browser must not terminate a job. Persist item states and results. After server restart, resume pending work safely; completed items must not be added again. Provide cancel (stop future items, keep completed entries) and retry failed items. Use modest configurable concurrency, backoff for throttling, and bounded retries; do not bypass source access controls.
+Store original bookmark name, source URL, source title, folder, title preference and import time separately from editable link labels. Preserve this history during normal saves and reimport. Show original names as title candidates only while editing the title. Backfill recoverable successful historical job labels; do not infer unavailable names. Legacy import time uses the recorded job start time.
 
-A duplicate source URL across existing works remains a warning rather than a universal block. Batch imports may add a different-title entry with the same URL and record that warning, consistent with manual save rules.
+Show progress and durable Added / Skipped registered URL / Unsupported / Failed / Needs review results. Summarize same-title and related-page warnings in expandable final reports with authors and primary links. Keep legacy duplicate-title skip reports readable.
+
+Jobs survive browser closure and resume pending items after server restart. Provide bounded retries and cancellation; completed entries remain and cancelled in-flight retrieval must not create a new work. Source-entry bookmarklet/share routing opens registered detail without invoking this importer. F-013 applies only to explicit edit-screen reimport.
 
 ## 11. Localization and accessibility
 
@@ -471,8 +457,8 @@ The release is complete only when the following behaviors are verified. Use focu
 ### Entries and sources
 
 1. Save a title-only entry; every other field may be absent.
-2. Reject empty/whitespace titles and exact trimmed duplicate titles; allow case/punctuation/internal-space differences.
-3. Reject concurrent duplicate-title saves atomically.
+2. Reject empty/whitespace titles; allow identical titles as separate entries and show appropriate import warnings.
+3. Reject concurrent equivalent-source URL saves atomically; allow linkless works and exclude the edited work itself.
 4. Save an unsupported source URL and open the exact path/query/fragment supplied.
 5. Add multiple links, switch primary, remove primary, and verify fallback selection.
 6. Broken covers show placeholders; no server image bytes are stored.
@@ -503,7 +489,7 @@ The release is complete only when the following behaviors are verified. Use focu
 ### Import, operation, and localization
 
 24. Interactive import accepts partial results, handles total failure, preserves personal fields, and only overwrites conflicts when selected.
-25. Duplicate imported title aborts the interactive metadata result; batch duplicates are skipped and listed.
+25. Same-title imports are allowed with authors/primary-link warnings; equivalent registered URLs are skipped. Verify both bookmark title priorities, fallback, stored name candidates and per-field overwrite/merge/keep.
 26. Bookmark HTML with nested folders, unsupported links, repeated URLs, and failed items produces accurate preview/results without executing uploaded content.
 27. Closing the browser and restarting the server preserve job progress without re-adding successful items.
 28. Retry/cancel behave as specified and do not roll back previously completed entries.
@@ -525,3 +511,5 @@ The release is complete only when the following behaviors are verified. Use focu
 8. Run acceptance checks, benchmark scale, and document deployment and limitations.
 
 No application feature depends on the importer succeeding. Future hosted accounts must retain existing ownership boundaries, permanent rating numbers, user-editable data, and source-independent work identities.
+
+**Import identity amendment — 2026-10-12:** F-002/F-003/F-013 are approved and implemented. Migration 3 removes work-title uniqueness, adds normalized source identity and bookmark provenance, and preserves existing data. The separate [implementation specification](media-library/IMPORT-SPEC.md) is authoritative for these features.

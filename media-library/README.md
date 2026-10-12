@@ -59,7 +59,7 @@ The PC must stay powered on and awake. This release is for a trusted LAN, withou
 - Tag/author/circle/series/character directories with clickable filtered searches, preferred display aliases, usage counts, shared editing, explicit merging/deletion, and paginated name/usage/creation sorting. The sort selector replaces the old gender filter.
 - Arbitrary rating dimensions with permanent numbered search keys, scales 2–10, ten symbol choices, gallery visibility, and independent sorting.
 - Unicode-aware server-side search with NOT → OR → AND precedence; autocomplete, pagination, deterministic seeded shuffle, and uniform random selection over complete results.
-- Hitomi metadata-only importer; empty-field filling, multi-value additions, explicit conflicting-value replacement, duplicate-title rejection.
+- Hitomi metadata-only importer; empty-field filling, per-field overwrite/merge/keep, and same-title warnings with authors and source links.
 - Bookmark HTML folder/item preview and durable jobs with progress, cancellation, retries, duplicate reports, and restart recovery.
 - English/Japanese switch, remembered per browser.
 - Automatic daily database backup with seven-copy retention, plus manual backup in Settings.
@@ -95,7 +95,7 @@ On a Hitomi work/reader page, run this bookmark. Android Chromium browsers may r
 - An exact source link, including a secondary source, opens its work detail. HTTP/HTTPS and www variants are treated alike. Multiple exact matches offer an entry chooser.
 - Another page or URL of the same Hitomi gallery opens a confirmation showing the registered link. Choose an existing entry, cancel, or import the current link as a new draft.
 - An unregistered gallery imports metadata into a new editor with the original URL, query, and page fragment preserved. Nothing is saved until Save. Import failure retains the URL for retry or manual editing.
-- Source-entry imports may preview a duplicate title with a warning; rename it before saving. Title uniqueness remains enforced, and ordinary interactive/batch duplicate handling is unchanged.
+- Identical titles are allowed. Individual imports show a warning with existing authors and primary URLs; different URLs create separate works. Equivalent registered URLs are skipped.
 
 The bookmark only navigates to Folio. It does not inspect your library from Hitomi, send page contents, or require an extension, CORS access, or a public server. The Folio PC must be running and reachable on your LAN. `/#/source?url=ENCODED_URL` is the incoming route; source checking itself never fetches remote data or modifies works.
 
@@ -107,9 +107,9 @@ Each metadata field in the work editor has a Remove all button. Confirm to clear
 
 Hitomi reader links such as `/reader/ID.html#7` use page 7's thumbnail as the cover; `#7-8` and `#7-` also use page 7. Interior pages use the source's smaller `webpsmalltn` format because large gallery thumbnails are not available for every page. Invalid/out-of-range fragments or missing page hashes fall back to the first page with a warning. No page fragment or a non-reader URL uses the first page. This also applies to bookmark imports. Existing covers stay unchanged until reimported; select the Cover replacement when prompted and save to apply it.
 
-For one work, add a URL in New/Edit and use Import metadata. The work is not saved until you press Save. With multiple links, choose the one to import from. Partial metadata is usable. Existing personal ratings/reviews/purchase status remain unchanged. A duplicate retrieved title aborts metadata application without modifying the draft.
+For one work, add a URL in New/Edit and use Import metadata. The work is not saved until you press Save. With multiple links, choose the one to import from. Partial metadata is usable. Existing personal ratings/reviews/purchase status remain unchanged. A duplicate title shows a confirmation without blocking a separate entry. Existing authors, circles, tags, series and characters each offer Overwrite / Merge / Keep. Empty fields are filled; empty imported values do not clear data. Cancel keeps the draft unchanged.
 
-For many works, export browser bookmarks to HTML, open Bookmark imports, upload, choose folders/items, and start. Each successful item becomes a new work. Unsupported links are excluded in preview. Duplicate titles, missing titles, ambiguous aliases, and fetch failures are reported without silently merging works. Failed/cancelled items can be retried. Closing the page does not stop the job. Cancellation keeps completed entries and allows an already running request to finish.
+For many works, export browser bookmarks to HTML, open Bookmark imports, upload, choose Source title first or Bookmark name first, choose folders/items, and start. Blank preferred titles fall back to the other name. Each successful item becomes a new work. Unsupported links are excluded in preview. Equivalent registered URLs and repeated batch URLs are skipped. Same-title entries are added and reported with existing authors/primary links; another gallery page is allowed with a warning. Missing both names, ambiguous aliases, and fetch failures are reported without silently merging works. Original bookmark names are saved internally and offered when you focus the title in Edit. Failed/cancelled items can be retried. Closing the page does not stop the job. Cancellation keeps completed entries; an in-flight fetch may finish but will not save a cancelled item.
 
 Supported source URL shapes include `/galleries/ID.html`, `/reader/ID.html#page`, and `/category/name-ID.html`. Saved URLs are never rewritten. Other URL shapes can still be saved manually. Import requests are restricted to known source hosts, pinned to public resolved addresses, bounded by time and response size, and do not follow redirects. The adapter reads gallery JSON and the thumbnail routing table from the source's current metadata host. It prefers `japanese_title` like the original page and derives the selected-page WebP thumbnail URL. Importing remains metadata-only and executes no source JavaScript. Viewing a supported Hitomi cover uses the separate volatile relay described below.
 
@@ -159,7 +159,7 @@ Edit a dimension in Rating dimensions, change its maximum, then choose Preview c
 ## Verification
 
 ```powershell
-py -3 -m unittest -v test_app test_server test_cover_relay
+py -3 -m unittest -v test_app test_imports test_server test_cover_relay
 node test_rating_flow.mjs
 node test_source_flow.mjs
 py -3 benchmark.py --count 30000
@@ -188,3 +188,5 @@ Tests and benchmarks use isolated temporary databases inside `test-output/` and 
 The owner is currently `local`. Persistence is owner-scoped so future registration can attach records to accounts; actual registration/authentication/public operation remains a separate release.
 
 - [F-002 / F-003 / F-013 import specification (日本語)](IMPORT-SPEC.md)
+
+Migration 3 automatically backs up an existing database in `data/migration-backups/` before changing the title/source constraints. Existing entries, links, scores and job history are preserved. Recoverable bookmark names from successful old jobs become title candidates; unavailable names are not invented. Run `node test_import_flow.mjs` for import UI-policy checks.

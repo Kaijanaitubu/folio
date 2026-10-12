@@ -84,3 +84,5 @@
 5. 上書き・マージ・そのまま、空欄補完、空取得の維持、性別違い、別名解決、キャンセルを検証する。
 6. 旧DB移行で作品・メタデータ関連・評価・リンク・ジョブを欠損させない。既存URL重複も保全する。
 7. 回帰テスト、英語／日本語UI確認、稼働DBのバックアップと整合性検査を完了し、検証記録とロードマップを更新する。
+
+実装状況：2026-10-12完了。[検証記録](VERIFICATION.md#import-identity-bookmark-provenance-and-explicit-reimport-f-002f-003f-013)参照。旧ジョブから復元する取込時刻は、そのジョブの記録済み開始時刻を使用する。実装テーブルは `links.url_key`、`source_claims`、`jobs.title_mode`、`job_items.warnings_json`、`work_imports`。

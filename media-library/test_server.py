@@ -52,7 +52,7 @@ class ServerTests(unittest.TestCase):
     def test_http_save_open_update_search_delete(self):
         status,w=self.request('works','POST',{'title':'HTTP test','links':[{'url':'https://example.org/a?q=1#two'}]})
         self.assertEqual(status,200);self.assertIsNone(w['opened']);wid=w['id']
-        self.assertEqual(self.request('works','POST',{'title':'HTTP test'})[0],409)
+        self.assertEqual(self.request('works','POST',{'title':'HTTP test'})[0],200)
         _,opened=self.request('works/'+wid+'/open','POST',{});self.assertIsNotNone(opened['opened'])
         status,w=self.request('works/'+wid,'PUT',{'title':'HTTP renamed','review':'hidden'});self.assertEqual(status,200)
         self.assertEqual(self.request('works?q=review:hidden')[1]['total'],1)
@@ -61,7 +61,8 @@ class ServerTests(unittest.TestCase):
     def test_interactive_duplicate_and_partial_fixture(self):
         self.request('works','POST',{'title':'Existing import'})
         with patch('importer.import_url',return_value={'title':'Existing import','author':[],'circle':[],'tag':[]}):
-            self.assertEqual(self.request('import','POST',{'url':'https://hitomi.la/reader/1.html'})[0],400)
+            status,result=self.request('import','POST',{'url':'https://hitomi.la/reader/1.html'})
+            self.assertEqual(status,200);self.assertEqual(result['title_matches'][0]['title'],'Existing import')
         with patch('importer.import_url',return_value={'title':'Partial result','author':[],'circle':[],'tag':[],'pages':None}):
             status,r=self.request('import','POST',{'url':'https://hitomi.la/reader/1.html'})
             self.assertEqual(status,200);self.assertIsNone(r['pages']);self.assertEqual(r['ambiguities'],[])
@@ -75,13 +76,13 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(self.request('source-check','POST',{'url':'https://hitomi.la/reader/54321.html'},token=False)[0],403)
             fetch.assert_not_called()
         self.assertIsNone(self.request('works/'+work['id'])[1]['opened'])
-    def test_source_draft_duplicate_title_can_be_reviewed_but_not_saved(self):
+    def test_source_draft_duplicate_title_is_warned_and_can_be_saved(self):
         self.request('works','POST',{'title':'Source duplicate title'})
         fixture={'title':'Source duplicate title','author':[],'circle':[],'tag':[],'warnings':[],'cover':'https://example.org/cover.webp'}
         with patch('importer.import_url',return_value=fixture):
             status,result=self.request('import','POST',{'url':'https://hitomi.la/reader/1.html','allow_duplicate_title':True})
-        self.assertEqual(status,200);self.assertEqual(result['cover'],fixture['cover']);self.assertIn('This title already exists; change it before saving',result['warnings'])
-        self.assertEqual(self.request('works','POST',result)[0],409)
+        self.assertEqual(status,200);self.assertEqual(result['cover'],fixture['cover']);self.assertEqual(result['title_matches'][0]['title'],fixture['title'])
+        self.assertEqual(self.request('works','POST',result)[0],200)
     def test_worker_job_recovery_and_duplicate_skip(self):
         self.request('works','POST',{'title':'Job duplicate'})
         _,j=self.request('jobs','POST',{'items':[{'url':'https://hitomi.la/reader/101.html'},{'url':'https://hitomi.la/reader/102.html'},{'url':'https://example.org/unsupported'}]})
@@ -98,7 +99,8 @@ class ServerTests(unittest.TestCase):
                 if r['status']=='complete':break
                 time.sleep(.05)
             server.STOP.set();worker.join(2)
-        self.assertEqual(r['status'],'complete');self.assertEqual(r['counts']['duplicate_title'],1);self.assertEqual(r['counts']['added'],1);self.assertEqual(r['counts']['unsupported'],1)
+        self.assertEqual(r['status'],'complete');self.assertEqual(r['counts']['added'],2);self.assertEqual(r['counts']['unsupported'],1)
+        self.assertTrue(any(i['warnings'].get('titles') for i in r['items']))
         _,r=self.request('jobs/'+jid+'/cancel','POST',{});self.assertEqual(r['status'],'cancelled')
     def test_metadata_display_sort_and_suggestions(self):
         from urllib.parse import urlencode
@@ -121,6 +123,26 @@ class ServerTests(unittest.TestCase):
     def test_bookmark_preview_http(self):
         status,r=self.request('bookmarks','POST',{'html':'<DL><A HREF="https://hitomi.la/reader/1.html">Test</A></DL>'})
         self.assertEqual(status,200);self.assertTrue(r[0]['supported'])
+    def test_registered_secondary_url_skips_fetch_and_self_reimport_is_allowed(self):
+        source='https://hitomi.la/reader/700001.html#4'
+        _,work=self.request('works','POST',{'title':'Registered source','author':['Registered author'],'links':[{'url':'https://example.org/700001','is_primary':True},{'url':source}]})
+        with patch('importer.import_url',return_value={'title':'Imported self','tag':[]}) as fetch:
+            status,r=self.request('import','POST',{'url':'http://www.hitomi.la/reader/700001.html?#04'})
+            self.assertEqual(status,409);self.assertEqual(r['matches'][0]['authors'],['Registered author']);fetch.assert_not_called()
+            self.assertEqual(self.request('import','POST',{'url':source,'exclude':work['id']})[0],200);self.assertEqual(fetch.call_count,1)
+        self.assertEqual(self.request('works','POST',{'title':'Other','links':[{'url':source}]})[0],409)
+    def test_bookmark_preview_and_job_normalized_duplicates(self):
+        self.request('works','POST',{'title':'Preview known','links':[{'url':'https://hitomi.la/reader/700002.html#2'}]})
+        urls=['http://www.hitomi.la/reader/700002.html?#02','https://hitomi.la/reader/700002.html#3','https://hitomi.la/reader/700003.html','http://www.hitomi.la/reader/700003.html?#01']
+        html='<DL>'+''.join(f'<A HREF="{u}">Bookmark</A>' for u in urls)+'</DL>'
+        status,items=self.request('bookmarks','POST',{'html':html})
+        self.assertEqual(status,200);self.assertTrue(items[0]['registered']);self.assertTrue(items[0]['duplicate']);self.assertTrue(items[1]['related']);self.assertFalse(items[1]['duplicate']);self.assertTrue(items[3]['duplicate'])
+        status,job=self.request('jobs','POST',{'items':items,'title_mode':'bookmark'})
+        self.assertEqual(status,200)
+        result=self.request('jobs/'+job['id'])[1]
+        self.assertEqual(result['title_mode'],'bookmark');self.assertEqual(result['counts'],{'duplicate_url':2,'pending':2})
+        self.assertEqual(self.request('jobs','POST',{'items':items,'title_mode':'invalid'})[0],400)
+        self.request('jobs/'+job['id']+'/cancel','POST',{})
     def test_thumbnail_url_resolution_without_image_fetch(self):
         image_hash='0'*61+'123'
         old='https://tn.hitomi.la/webpbigtn/3/12/'+image_hash+'.webp'

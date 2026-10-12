@@ -9,6 +9,7 @@ import uuid
 import unicodedata
 from urllib.parse import urlsplit
 from search import compile_query, CATEGORIES
+from source_identity import normalize_url
 
 ROOT = Path(__file__).resolve().parent
 PATH = Path(os.environ.get('MEDIA_DB', str(ROOT / 'data' / 'library.sqlite3')))
@@ -72,15 +73,64 @@ def init():
             c.execute("ALTER TABLE entities ADD COLUMN sort_reading TEXT NOT NULL DEFAULT ''")
         c.execute('INSERT OR IGNORE INTO migrations VALUES(2,?)',(now(),))
         c.execute("UPDATE job_items SET status='pending' WHERE status='running'")
+    migrate_imports()
+
+def migrate_imports():
+    """Rebuild works with foreign keys disabled only on this migration connection."""
+    c=connect()
+    try:
+        if c.execute('SELECT 1 FROM migrations WHERE version=3').fetchone(): return
+        if c.execute('SELECT 1 FROM works LIMIT 1').fetchone():
+            backup(PATH.parent/'migration-backups')
+        c.execute('PRAGMA foreign_keys=OFF'); c.execute('BEGIN IMMEDIATE')
+        c.execute("CREATE TABLE works_new(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES owners(id), title TEXT NOT NULL COLLATE BINARY, cover TEXT DEFAULT '', category TEXT DEFAULT '', language TEXT DEFAULT '', pages INTEGER CHECK(pages>=0), review TEXT DEFAULT '', bought INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL, updated TEXT NOT NULL, opened TEXT)")
+        c.execute('INSERT INTO works_new SELECT * FROM works')
+        c.execute('DROP TABLE works'); c.execute('ALTER TABLE works_new RENAME TO works')
+        for name,column in [('works_created','created'),('works_opened','opened'),('works_title','title')]:
+            c.execute(f'CREATE INDEX {name} ON works(owner,{column})')
+        c.execute("ALTER TABLE links ADD COLUMN url_key TEXT NOT NULL DEFAULT ''")
+        for r in c.execute('SELECT id,url FROM links').fetchall():
+            c.execute('UPDATE links SET url_key=? WHERE id=?',(normalize_url(r['url']),r['id']))
+        c.execute('CREATE INDEX link_key ON links(url_key,work_id)')
+        c.execute('CREATE TABLE source_claims(owner TEXT NOT NULL REFERENCES owners(id), url_key TEXT NOT NULL, work_id TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE, PRIMARY KEY(owner,url_key))')
+        c.execute('INSERT INTO source_claims SELECT w.owner,l.url_key,min(w.id) FROM links l JOIN works w ON w.id=l.work_id GROUP BY w.owner,l.url_key')
+        c.execute("ALTER TABLE jobs ADD COLUMN title_mode TEXT NOT NULL DEFAULT 'source'")
+        c.execute("ALTER TABLE job_items ADD COLUMN warnings_json TEXT NOT NULL DEFAULT '{}'")
+        c.execute("CREATE TABLE work_imports(id TEXT PRIMARY KEY, work_id TEXT NOT NULL REFERENCES works(id) ON DELETE CASCADE, item_id TEXT UNIQUE, source_url TEXT NOT NULL, bookmark_name TEXT NOT NULL, source_title TEXT NOT NULL DEFAULT '', folder TEXT NOT NULL DEFAULT '', title_mode TEXT NOT NULL, imported_at TEXT NOT NULL)")
+        c.execute('CREATE INDEX work_import_history ON work_imports(work_id)')
+        c.execute("INSERT INTO work_imports SELECT i.id,i.work_id,i.id,i.url,i.label,i.title,i.folder,'source',j.created FROM job_items i JOIN jobs j ON j.id=i.job_id JOIN works w ON w.id=i.work_id WHERE i.status='added' AND trim(i.label)<>''")
+        if c.execute('PRAGMA foreign_key_check').fetchone() or c.execute('PRAGMA integrity_check').fetchone()[0]!='ok':
+            raise ValueError('Import migration integrity check failed')
+        c.execute('INSERT INTO migrations VALUES(3,?)',(now(),)); c.commit()
+    except Exception:
+        c.rollback(); raise
+    finally: c.close()
 
 def url(value):
     value = str(value or '').strip()
     if not value: return ''
-    try: u = urlsplit(value)
-    except ValueError: raise ValueError('Invalid URL')
-    if u.scheme not in ('http','https') or not u.hostname or u.username or u.password:
-        raise ValueError('Use an HTTP or HTTPS URL without credentials')
+    normalize_url(value)
     return value
+
+class DuplicateSource(ValueError):
+    def __init__(self,matches):
+        super().__init__('Source URL already registered'); self.matches=matches
+
+def work_summary(c,row):
+    out=dict(row)
+    primary=c.execute('SELECT url FROM links WHERE work_id=? ORDER BY is_primary DESC,position LIMIT 1',(out['id'],)).fetchone()
+    out['primary_url']=primary[0] if primary else ''
+    out['authors']=[r[0] for r in c.execute("SELECT COALESCE(NULLIF(e.display_alias,''),e.name) FROM entities e JOIN work_entities we ON we.entity_id=e.id WHERE we.work_id=? AND e.kind='author' ORDER BY e.name",(out['id'],))]
+    return out
+
+def title_matches(c,title,exclude=''):
+    return [work_summary(c,r) for r in c.execute('SELECT id,title FROM works WHERE owner=? AND title=? AND id<>? ORDER BY created,id',(OWNER,title,exclude))]
+
+def exact_sources(c,value,exclude=''):
+    key=normalize_url(value)
+    if not key: return []
+    rows=c.execute('SELECT w.id,w.title,min(l.url) AS source_url FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=? AND w.id<>? GROUP BY w.id ORDER BY w.title,w.id',(OWNER,key,exclude))
+    return [work_summary(c,r) for r in rows]
 
 def dimensions(c):
     return [dict(r) for r in c.execute('SELECT * FROM dimensions WHERE owner=? ORDER BY number',(OWNER,))]
@@ -95,16 +145,11 @@ def source_matches(c,value):
         raise ValueError('Use a Hitomi work or reader URL')
     gid=importer.gallery_id(value)
     if not gid: raise ValueError('Use a Hitomi work or reader URL')
-    def key(link):
-        u=urlsplit(link)
-        # Transport and www variations do not create a different source page.
-        return u.path,u.query,u.fragment
-    exact,related={},{}
+    exact={r['id']:r for r in exact_sources(c,value)}; related={}
     for row in c.execute('SELECT w.id,w.title,l.url FROM works w JOIN links l ON l.work_id=w.id WHERE w.owner=? AND instr(l.url,?)>0 ORDER BY w.title,w.id,l.position',(OWNER,gid)):
         if importer.gallery_id(row['url'])!=gid: continue
-        item={'id':row['id'],'title':row['title'],'source_url':row['url']}
+        item=work_summary(c,{'id':row['id'],'title':row['title'],'source_url':row['url']})
         related[row['id']]=item
-        if row['url']==value or key(row['url'])==key(value): exact[row['id']]=item
     return {'url':value,'match':'exact' if exact else 'gallery' if related else 'none','matches':list((exact or related).values())}
 
 def entity_data(c,row):
@@ -178,12 +223,26 @@ def get_work(c,wid,opened=False):
         out[kind]=[entity_data(c,e) for e in c.execute("SELECT e.* FROM entities e JOIN work_entities we ON we.entity_id=e.id WHERE we.work_id=? AND e.kind=? ORDER BY metadata_key(COALESCE(NULLIF(display_alias,''),name)),e.gender,e.id",(wid,kind))]
     out['links']=[dict(l) for l in c.execute('SELECT * FROM links WHERE work_id=? ORDER BY position',(wid,))]
     out['ratings']={r['dimension_id']:r['value'] for r in c.execute('SELECT * FROM scores WHERE work_id=?',(wid,))}
+    out['bookmark_names']=[r[0] for r in c.execute("SELECT DISTINCT bookmark_name FROM work_imports WHERE work_id=? AND trim(bookmark_name)<>'' ORDER BY bookmark_name",(wid,))]
     return out
 
 def save_work(c,data,wid=None):
+    if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
     title=str(data.get('title','')).strip()
     if not title: raise ValueError('Title is required')
     wid=wid or uid(); stamp=now()
+    previous_keys={r[0] for r in c.execute('SELECT url_key FROM links WHERE work_id=?',(wid,))}
+    previous_urls={r[0] for r in c.execute('SELECT url FROM links WHERE work_id=?',(wid,))}
+    prepared=[]; seen=set(); seen_raw=set()
+    for l in data.get('links',[]):
+        u=url(l.get('url'))
+        if not u: continue
+        key=normalize_url(u)
+        if u in seen_raw or key in seen and u not in previous_urls: raise ValueError('Repeated source URL within entry')
+        seen.add(key); seen_raw.add(u)
+        matches=exact_sources(c,u,wid)
+        if matches and key not in previous_keys: raise DuplicateSource(matches)
+        prepared.append((l,u,key))
     if data.get('category','') not in ('',*CATEGORIES): raise ValueError('Invalid category')
     pages=data.get('pages')
     if pages is not None and (type(pages)!=int or pages<0): raise ValueError('Pages must be a nonnegative integer')
@@ -196,14 +255,15 @@ def save_work(c,data,wid=None):
             if eid: c.execute('INSERT OR IGNORE INTO work_entities VALUES(?,?)',(wid,eid))
     existing_link_ids={r[0] for r in c.execute('SELECT id FROM links WHERE work_id=?',(wid,))}
     c.execute('DELETE FROM links WHERE work_id=?',(wid,))
-    links=data.get('links',[]); seen=set(); selected=next((i for i,l in enumerate(links) if l.get('is_primary')),0)
-    for i,l in enumerate(links):
-        u=url(l.get('url'))
-        if not u: continue
-        if u in seen: raise ValueError('Repeated source URL within entry')
-        seen.add(u)
+    selected=next((i for i,(l,u,key) in enumerate(prepared) if l.get('is_primary')),0)
+    c.execute('DELETE FROM source_claims WHERE owner=? AND work_id=?',(OWNER,wid))
+    for i,(l,u,key) in enumerate(prepared):
         lid=l.get('id') if l.get('id') in existing_link_ids else uid()
-        c.execute('INSERT INTO links VALUES(?,?,?,?,?,?)',(lid,wid,u,str(l.get('label','')),i,int(i==selected)))
+        c.execute('INSERT INTO links(id,work_id,url,label,position,is_primary,url_key) VALUES(?,?,?,?,?,?,?)',(lid,wid,u,str(l.get('label','')),i,int(i==selected),key))
+        c.execute('INSERT OR IGNORE INTO source_claims VALUES(?,?,?)',(OWNER,key,wid))
+    for key in previous_keys-seen:
+        row=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(OWNER,key)).fetchone()
+        if row[0]: c.execute('INSERT OR IGNORE INTO source_claims VALUES(?,?,?)',(OWNER,key,row[0]))
     if seen and not c.execute('SELECT 1 FROM links WHERE work_id=? AND is_primary=1',(wid,)).fetchone():
         c.execute('UPDATE links SET is_primary=1 WHERE id=(SELECT id FROM links WHERE work_id=? ORDER BY position LIMIT 1)',(wid,))
     c.execute('DELETE FROM scores WHERE work_id=?',(wid,))
@@ -212,8 +272,18 @@ def save_work(c,data,wid=None):
         if value is None: continue
         if did not in dims or type(value)!=int or not 1<=value<=dims[did]['maximum']: raise ValueError('Invalid rating score')
         c.execute('INSERT INTO scores VALUES(?,?,?)',(wid,did,value))
-    warnings=[r[0] for r in c.execute('SELECT DISTINCT w.title FROM links l JOIN works w ON w.id=l.work_id WHERE l.url IN (SELECT url FROM links WHERE work_id=?) AND w.id<>? AND w.owner=?',(wid,wid,OWNER))]
-    return dict(get_work(c,wid),warnings=warnings)
+    return dict(get_work(c,wid),warnings=[])
+
+def record_bookmark(c,wid,item,source_title,mode):
+    c.execute('INSERT OR IGNORE INTO work_imports VALUES(?,?,?,?,?,?,?,?,?)',(uid(),wid,item['id'],item['url'],str(item.get('label','')),source_title,str(item.get('folder','')),mode,now()))
+
+def delete_work(c,wid):
+    if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
+    keys=[r[0] for r in c.execute('SELECT url_key FROM links WHERE work_id=?',(wid,))]
+    c.execute('DELETE FROM works WHERE id=? AND owner=?',(wid,OWNER))
+    for key in keys:
+        row=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(OWNER,key)).fetchone()
+        if row[0]: c.execute('INSERT OR IGNORE INTO source_claims VALUES(?,?,?)',(OWNER,key,row[0]))
 
 def list_works(c,q='',sort='newest',offset=0,limit=40,seed='0',random_one=False):
     dims={d['number']:d for d in dimensions(c)}

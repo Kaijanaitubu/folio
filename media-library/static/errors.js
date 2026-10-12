@@ -1,4 +1,6 @@
 const messages={
+ 'Source URL already registered':'このソースURLは既に登録されています。登録済みの作品を開いてください',
+ 'Invalid bookmark title preference':'ブックマークのタイトル優先方式を確認してください',
  'Thumbnail routing format changed; metadata can still be saved':'サムネイルの配信方式が変更されています。他のメタデータは保存できます',
  'Not a supported Hitomi thumbnail URL':'対応するHitomiのサムネイルURLではありません',
  'Title is required':'タイトルを入力してください',

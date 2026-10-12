@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 const load=async name=>import('data:text/javascript;base64,'+Buffer.from(readFileSync(new URL('static/'+name,import.meta.url),'utf8')).toString('base64'));
 const {bookmarklet}=await load('source-link.js');
 const {en,ja}=await load('i18n.js');
+const {applyImported,metadataKinds}=await load('import-policy.js');
 const target='http://192.168.0.140:8765';
 const source='https://hitomi.la/reader/123.html?x=a&y=b#7-8';
 const script=bookmarklet(target);
@@ -33,7 +34,7 @@ function setup(match,matches){
   $:selector=>nodes[selector]??=( {isConnected:true} ),$$:()=>buttons,
   history:{replaceState:(_,__,hash)=>context.location.hash=hash},
   edit:async()=>{},nav:path=>context.navigation=path,toast:()=>{},localizeError:s=>s,
-  error:(_,e)=>{throw e},structuredClone};
+  error:(_,e)=>{throw e},structuredClone,applyImported,metadataKinds};
  vm.createContext(context);vm.runInContext(openCode+'\n'+importCode,context);
  return {context,calls,nodes,buttons};
 }
@@ -45,7 +46,7 @@ const entry={id:'saved-id',title:'QA saved',source_url:'https://hitomi.la/reader
 {
  const {context,calls}=setup('none',[]);await context.openSource(1);
  assert.equal(context.location.hash,'#/new');assert.equal(context.draft.links[0].url,source);
- assert.equal(context.draft.title,fixture.title);assert.equal(calls[1].body.allow_duplicate_title,true);
+ assert.equal(context.draft.title,fixture.title);assert.equal(calls[1].body.exclude,'');assert.equal(calls[1].body.allow_duplicate_title,undefined);
  assert.ok(calls.every(c=>c.path!=='works')); // Nothing is saved automatically.
 }
 for(const choice of ['existing','cancel','new']){

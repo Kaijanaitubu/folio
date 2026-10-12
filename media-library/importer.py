@@ -159,10 +159,14 @@ class Bookmarks(HTMLParser):
             if len(self.items)>100000: raise ValueError('Bookmark file exceeds 100,000 items')
 
 def bookmarks(text):
+    from source_identity import normalize_url
     if len(text.encode())>12*1024*1024: raise ValueError('Bookmark file exceeds 12 MB')
     parser=Bookmarks(); parser.feed(text)
     if not parser.items: raise ValueError('No bookmark links found in this HTML file')
     seen=set()
     for item in parser.items:
-        item['supported']=bool(gallery_id(item['url'])); item['duplicate']=item['url'] in seen; seen.add(item['url'])
+        item['supported']=bool(gallery_id(item['url']))
+        try: key=normalize_url(item['url'])
+        except ValueError: key=item['url']
+        item['duplicate']=key in seen; seen.add(key)
     return parser.items
