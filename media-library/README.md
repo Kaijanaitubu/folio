@@ -138,6 +138,8 @@ $env:MEDIA_PORT = '8765'
 
 Backups use SQLite's consistent online-backup API, include dictionaries/ratings/links/job state, and contain URLs rather than images. The server creates a backup at startup and every 24 hours while running, keeping seven copies in the selected backup directory. Another physical disk or separately backed-up location is needed to protect against disk loss.
 
+For Windows automatic startup, persist the destination with `[Environment]::SetEnvironmentVariable('MEDIA_BACKUPS', 'ABSOLUTE_BACKUP_FOLDER', 'User')` and restart Folio. When its process has no `MEDIA_BACKUPS` override, `run-background.ps1` reads this user setting. A OneDrive-synced folder can hold these snapshots; OneDrive handles cloud transfer. Keep the live database in its normal location and verify cloud synchronization separately.
+
 To create a backup without running the website:
 
 ```powershell

@@ -1,6 +1,12 @@
 param([int]$Port = 8765)
 $ErrorActionPreference = 'Stop'
 $RootDirectory = $PSScriptRoot
+# Explorer/startup tasks can inherit an older environment after a user setting
+# changes. Read the persisted backup destination when this process has none.
+if (-not $env:MEDIA_BACKUPS) {
+    $SavedBackupDirectory = [Environment]::GetEnvironmentVariable('MEDIA_BACKUPS', 'User')
+    if ($SavedBackupDirectory) { $env:MEDIA_BACKUPS = $SavedBackupDirectory }
+}
 $RuntimePath = Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
 if (-not (Test-Path -LiteralPath $RuntimePath)) {
     $RuntimePath = (Get-Command python -ErrorAction Stop).Source
