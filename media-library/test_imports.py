@@ -116,7 +116,8 @@ class ImportTests(unittest.TestCase):
         self.save(a,a['id']);self.save({'title':'Old A'})
         with self.assertRaises(db.DuplicateSource): self.save({'title':'New','links':[{'url':'https://hitomi.la/reader/666.html'}]})
         with db.transaction() as c:
-            db.delete_work(c,a['id'])
+            # Permanent deletion now releases claims; normal deletion reserves them in Trash.
+            db.purge_work(c,a['id'])
             self.assertEqual(c.execute('SELECT work_id FROM source_claims WHERE url_key=?',(normalize_url('https://hitomi.la/reader/666.html'),)).fetchone()[0],b['id'])
         self.assertEqual(len(list((db.PATH.parent/'migration-backups').glob('*.sqlite3'))),1)
 

@@ -192,3 +192,7 @@ The owner is currently `local`. Persistence is owner-scoped so future registrati
 Migration 3 automatically backs up an existing database in `data/migration-backups/` before changing the title/source constraints. Existing entries, links, scores and job history are preserved. Recoverable bookmark names from successful old jobs become title candidates; unavailable names are not invented. Run `node test_import_flow.mjs` for import UI-policy checks.
 
 Title candidates replace the entire typed title when selected; Save still commits the change. Reimport omits unchanged fields (metadata order and duplicate items are ignored after alias resolution). When nothing changes, it reports “No information to change” and keeps the draft intact.
+
+## Recovery, saved searches, batch editing and PWA
+
+Trash and operation history retain recoverable information for 30 days. Library selection supports batch changes with preview and undo. Named searches are shared across devices. The editor previews cover URLs without server image storage. See [feature specification](FEATURES-SPEC.md) for behavior, limits and private Tailscale HTTPS setup. On a compatible installed PWA, share a source link to Folio; PC/server availability is still required.

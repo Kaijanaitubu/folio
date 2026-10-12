@@ -515,3 +515,7 @@ The release is complete only when the following behaviors are verified. Use focu
 No application feature depends on the importer succeeding. Future hosted accounts must retain existing ownership boundaries, permanent rating numbers, user-editable data, and source-independent work identities.
 
 **Import identity amendment — 2026-10-12:** F-002/F-003/F-013 are approved and implemented. Migration 3 removes work-title uniqueness, adds normalized source identity and bookmark provenance, and preserves existing data. The separate [implementation specification](media-library/IMPORT-SPEC.md) is authoritative for these features.
+
+## 2026-10-12 Personal-library feature extension
+
+F-006–F-009 and F-012 were approved for implementation. The authoritative extension is [FEATURES-SPEC.md](media-library/FEATURES-SPEC.md): 30-day Trash/history, safe undo and exact rating-conversion recovery, server-persisted named searches, previewed atomic batch editing, transient cover previews and installed-PWA shared-link entry over private HTTPS. Browser/OS share registration requires real-device verification; this does not provide operation while the hosting PC is off.

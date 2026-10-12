@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 import db
+import features
 import importer
 import cover_relay
 from search import CATEGORIES
@@ -56,13 +57,15 @@ def process_import_item(item):
         c.execute("UPDATE job_items SET status='added',title=?,message=?,work_id=?,warnings_json=? WHERE id=?",(title,'; '.join(data.get('warnings',[])),wid,json.dumps(warnings,ensure_ascii=False),item['id']))
 
 def worker():
-    last_backup=0
+    last_backup=0; last_cleanup=0
     while not STOP.is_set():
         cover_relay.CACHE.prune()
         if time.time()-last_backup>86400:
             try: db.backup(); last_backup=time.time()
             except Exception: last_backup=time.time()-86340
         with db.transaction() as c:
+            if time.time()-last_cleanup>3600:
+                features.cleanup(c); last_cleanup=time.time()
             item=c.execute("SELECT i.* FROM job_items i JOIN jobs j ON j.id=i.job_id WHERE j.status='running' AND i.status='pending' ORDER BY j.created,i.rowid LIMIT 1").fetchone()
             if item:
                 item=dict(item); c.execute("UPDATE job_items SET status='running',attempts=attempts+1 WHERE id=?",(item['id'],))
@@ -138,7 +141,7 @@ class Handler(BaseHTTPRequestHandler):
             raw=file.read_bytes(); self.send_response(200)
             self.send_header('Content-Type',(mimetypes.guess_type(str(file))[0] or 'application/octet-stream')+'; charset=utf-8')
             self.send_header('Content-Length',str(len(raw))); self.send_header('X-Content-Type-Options','nosniff')
-            self.send_header('Content-Security-Policy',"default-src 'self'; img-src 'self' http: https:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+            self.send_header('Content-Security-Policy',"default-src 'self'; img-src 'self' http: https: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'")
             self.end_headers()
             if self.command!='HEAD': self.wfile.write(raw)
             return
@@ -147,17 +150,53 @@ class Handler(BaseHTTPRequestHandler):
             if self.command not in ('GET','HEAD'): raise ValueError('Invalid cover request')
             self.send_cover(ident); return
         data=self.body() if self.command in ('POST','PUT') else {}
+        if action=='covers' and ident=='preview' and self.command=='POST':
+            if not cover_relay.SLOTS.acquire(timeout=25): raise ValueError('Cover relay is busy; try again')
+            try:
+                mime,raw=cover_relay.load(data.get('url',''))
+                self.send_response(200); self.send_header('Content-Type',mime)
+                self.send_header('Content-Length',str(len(raw))); self.send_header('Cache-Control','no-store')
+                self.send_header('X-Content-Type-Options','nosniff'); self.end_headers(); self.wfile.write(raw)
+            finally: cover_relay.SLOTS.release()
+            return
         with db.transaction() as c:
             if action=='config': result={'token':TOKEN,'dimensions':db.dimensions(c),'symbols':db.SYMBOLS,'categories':CATEGORIES}
             elif action=='works':
                 if self.command=='GET':
                     if ident: result=db.get_work(c,ident)
+                    elif g('ids')=='1': result={'ids':features.batch_targets(c,{'all':True,'query':g('q')})}
                     else: result=db.list_works(c,g('q'),g('sort','newest'),max(0,int(g('offset','0'))),min(100,max(1,int(g('limit','40')))),g('seed','0'),g('random')=='1')
                 elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='open': result=db.get_work(c,ident,True)
                 elif self.command in ('POST','PUT'):
                     if ident and not c.execute('SELECT 1 FROM works WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone(): raise ValueError('Entry not found')
-                    result=db.save_work(c,data,ident)
+                    result=features.save_work(c,data,ident)
                 elif self.command=='DELETE': db.delete_work(c,ident); result={'ok':True}
+            elif action=='trash':
+                if self.command=='GET': result=features.trash_list(c)
+                elif self.command=='POST' and ident=='restore-preview': result=features.restore_preview(c,data.get('ids',[]))
+                elif self.command=='POST' and ident=='restore': result=features.restore(c,data.get('ids',[]),data.get('signature'))
+                elif self.command=='DELETE':
+                    if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
+                    ids=[ident] if ident else [r['id'] for r in c.execute('SELECT id FROM works WHERE owner=? AND deleted_at IS NOT NULL',(db.OWNER,))]
+                    for wid in ids:
+                        w=db.get_work(c,wid,include_deleted=True)
+                        if not w['deleted_at']: raise ValueError('Entry is not in Trash')
+                    for wid in ids: db.purge_work(c,wid)
+                    result={'ok':True}
+                else: raise ValueError('Invalid Trash request')
+            elif action=='history':
+                if self.command=='GET': result=features.history(c)
+                elif self.command=='POST' and ident: result=features.undo(c,ident,len(parts)>2 and parts[2]=='undo')
+                else: raise ValueError('Invalid history request')
+            elif action=='saved-searches':
+                if self.command=='GET': result=features.searches(c)
+                elif self.command=='POST' and ident=='reorder': result=features.reorder_searches(c,data.get('ids'))
+                elif self.command in ('POST','PUT'): result=features.save_search(c,data,ident)
+                elif self.command=='DELETE': c.execute('DELETE FROM saved_searches WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
+                else: raise ValueError('Invalid saved search request')
+            elif action=='batch' and self.command=='POST':
+                result=features.batch_apply(c,data.get('id')) if ident=='apply' else features.batch_preview(c,data) if ident=='preview' else None
+                if result is None: raise ValueError('Invalid batch request')
             elif action=='entities':
                 if self.command=='GET':
                     if ident:
@@ -171,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
             elif action=='dimensions':
                 if self.command=='POST' and ident and len(parts)==3 and parts[2]=='preview': result=db.dimension_preview(c,ident,data.get('maximum'))
                 elif self.command=='GET': result=db.dimensions(c)
-                elif self.command in ('POST','PUT'): result={'id':db.save_dimension(c,data,ident)}
+                elif self.command in ('POST','PUT'): result={'id':features.save_dimension(c,data,ident)}
                 elif self.command=='DELETE': c.execute('DELETE FROM dimensions WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
             elif action=='suggestions':
                 text=g('q'); field=g('field')
@@ -183,7 +222,10 @@ class Handler(BaseHTTPRequestHandler):
                     result.append({'label':e['display_name'],'field':f,'value':e['name'],'detail':e['kind']+' / '+e['gender'] if e['kind']=='tag' else e['kind']})
                 for d in db.dimensions(c):
                     if text.casefold() in d['name'].casefold() or text.casefold() in 'rating'+str(d['number']): result.append({'label':d['name'],'field':'rating'+str(d['number']),'value':'>=1','detail':f'1–{d["maximum"]}'})
-            elif action=='source-check' and self.command=='POST': result=db.source_matches(c,data.get('url',''))
+            elif action=='source-check' and self.command=='POST':
+                if data.get('generic'):
+                    value=db.url(data.get('url','')); result={'url':value,'matches':db.exact_sources(c,value)}
+                else: result=db.source_matches(c,data.get('url',''))
             elif action=='import' and self.command=='POST':
                 matches=db.exact_sources(c,data['url'],data.get('exclude',''))
                 if matches: raise db.DuplicateSource(matches)

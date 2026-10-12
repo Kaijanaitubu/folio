@@ -74,6 +74,8 @@ def init():
         c.execute('INSERT OR IGNORE INTO migrations VALUES(2,?)',(now(),))
         c.execute("UPDATE job_items SET status='pending' WHERE status='running'")
     migrate_imports()
+    import features
+    with transaction() as c: features.init(c)
 
 def migrate_imports():
     """Rebuild works with foreign keys disabled only on this migration connection."""
@@ -84,7 +86,7 @@ def migrate_imports():
             backup(PATH.parent/'migration-backups')
         c.execute('PRAGMA foreign_keys=OFF'); c.execute('BEGIN IMMEDIATE')
         c.execute("CREATE TABLE works_new(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES owners(id), title TEXT NOT NULL COLLATE BINARY, cover TEXT DEFAULT '', category TEXT DEFAULT '', language TEXT DEFAULT '', pages INTEGER CHECK(pages>=0), review TEXT DEFAULT '', bought INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL, updated TEXT NOT NULL, opened TEXT)")
-        c.execute('INSERT INTO works_new SELECT * FROM works')
+        c.execute('INSERT INTO works_new SELECT id,owner,title,cover,category,language,pages,review,bought,created,updated,opened FROM works')
         c.execute('DROP TABLE works'); c.execute('ALTER TABLE works_new RENAME TO works')
         for name,column in [('works_created','created'),('works_opened','opened'),('works_title','title')]:
             c.execute(f'CREATE INDEX {name} ON works(owner,{column})')
@@ -124,12 +126,12 @@ def work_summary(c,row):
     return out
 
 def title_matches(c,title,exclude=''):
-    return [work_summary(c,r) for r in c.execute('SELECT id,title FROM works WHERE owner=? AND title=? AND id<>? ORDER BY created,id',(OWNER,title,exclude))]
+    return [work_summary(c,r) for r in c.execute('SELECT id,title FROM works WHERE deleted_at IS NULL AND owner=? AND title=? AND id<>? ORDER BY created,id',(OWNER,title,exclude))]
 
 def exact_sources(c,value,exclude=''):
     key=normalize_url(value)
     if not key: return []
-    rows=c.execute('SELECT w.id,w.title,min(l.url) AS source_url FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=? AND w.id<>? GROUP BY w.id ORDER BY w.title,w.id',(OWNER,key,exclude))
+    rows=c.execute('SELECT w.id,w.title,w.deleted_at,min(l.url) AS source_url FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=? AND w.id<>? GROUP BY w.id ORDER BY w.title,w.id',(OWNER,key,exclude))
     return [work_summary(c,r) for r in rows]
 
 def dimensions(c):
@@ -146,9 +148,9 @@ def source_matches(c,value):
     gid=importer.gallery_id(value)
     if not gid: raise ValueError('Use a Hitomi work or reader URL')
     exact={r['id']:r for r in exact_sources(c,value)}; related={}
-    for row in c.execute('SELECT w.id,w.title,l.url FROM works w JOIN links l ON l.work_id=w.id WHERE w.owner=? AND instr(l.url,?)>0 ORDER BY w.title,w.id,l.position',(OWNER,gid)):
+    for row in c.execute('SELECT w.id,w.title,w.deleted_at,l.url FROM works w JOIN links l ON l.work_id=w.id WHERE w.owner=? AND instr(l.url,?)>0 ORDER BY w.title,w.id,l.position',(OWNER,gid)):
         if importer.gallery_id(row['url'])!=gid: continue
-        item=work_summary(c,{'id':row['id'],'title':row['title'],'source_url':row['url']})
+        item=work_summary(c,{'id':row['id'],'title':row['title'],'source_url':row['url'],'deleted_at':row['deleted_at']})
         related[row['id']]=item
     return {'url':value,'match':'exact' if exact else 'gallery' if related else 'none','matches':list((exact or related).values())}
 
@@ -171,7 +173,7 @@ def entity_list(c,kind=None,q='',sort='name_asc',offset=0,limit=300,paged=False)
            'newest':'e.created IS NULL ASC,e.created DESC,e.rowid DESC',
            'oldest':'e.created IS NOT NULL ASC,e.created ASC,e.rowid ASC'}.get(sort)
     if not order: raise ValueError('Invalid metadata sort')
-    sql="SELECT e.*, COALESCE(NULLIF(e.display_alias,''),e.name) AS display_name, (SELECT count(*) FROM work_entities WHERE entity_id=e.id) AS uses FROM entities e WHERE "+where
+    sql="SELECT e.*, COALESCE(NULLIF(e.display_alias,''),e.name) AS display_name, (SELECT count(*) FROM work_entities we JOIN works w ON w.id=we.work_id WHERE we.entity_id=e.id AND w.deleted_at IS NULL) AS uses FROM entities e WHERE "+where
     rows=[entity_data(c,r) for r in c.execute(sql+' ORDER BY '+order+',metadata_key(display_name),e.gender,e.id LIMIT ? OFFSET ?',args+[min(300,max(1,limit)),max(0,offset)])]
     if paged:
         return {'items':rows,'total':c.execute('SELECT count(*) FROM entities e WHERE '+where,args).fetchone()[0]}
@@ -212,9 +214,9 @@ def resolve(c,kind,item):
     if rows: return rows[0][0]
     return save_entity(c,dict(item,kind=kind))
 
-def get_work(c,wid,opened=False):
+def get_work(c,wid,opened=False,include_deleted=False):
     r=c.execute('SELECT * FROM works WHERE id=? AND owner=?',(wid,OWNER)).fetchone()
-    if not r: raise ValueError('Entry not found')
+    if not r or r['deleted_at'] and not include_deleted: raise ValueError('Entry not found; check Trash')
     if opened:
         c.execute('UPDATE works SET opened=? WHERE id=?',(now(),wid))
         r=c.execute('SELECT * FROM works WHERE id=?',(wid,)).fetchone()
@@ -277,7 +279,7 @@ def save_work(c,data,wid=None):
 def record_bookmark(c,wid,item,source_title,mode):
     c.execute('INSERT OR IGNORE INTO work_imports VALUES(?,?,?,?,?,?,?,?,?)',(uid(),wid,item['id'],item['url'],str(item.get('label','')),source_title,str(item.get('folder','')),mode,now()))
 
-def delete_work(c,wid):
+def purge_work(c,wid):
     if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
     keys=[r[0] for r in c.execute('SELECT url_key FROM links WHERE work_id=?',(wid,))]
     c.execute('DELETE FROM works WHERE id=? AND owner=?',(wid,OWNER))
@@ -288,7 +290,7 @@ def delete_work(c,wid):
 def list_works(c,q='',sort='newest',offset=0,limit=40,seed='0',random_one=False):
     dims={d['number']:d for d in dimensions(c)}
     condition,args=compile_query(q,dims)
-    where='w.owner=? AND '+condition; args=[OWNER]+args
+    where='w.owner=? AND w.deleted_at IS NULL AND '+condition; args=[OWNER]+args
     total=c.execute('SELECT count(*) FROM works w WHERE '+where,args).fetchone()[0]
     order={'newest':'w.created DESC','oldest':'w.created ASC','recent':'w.opened IS NULL,w.opened DESC','least':'w.opened IS NOT NULL,w.opened ASC','random':'shuffle(w.id,?)'}.get(sort,'w.created DESC')
     sortargs=[]
@@ -361,3 +363,8 @@ def backup(destination=None):
     finally: target.close(); source.close()
     for p in sorted(dest.glob('library-*.sqlite3'))[:-7]: p.unlink()
     return path
+
+
+def delete_work(c,wid):
+    import features
+    features.trash(c,wid)
