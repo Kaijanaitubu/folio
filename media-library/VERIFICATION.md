@@ -118,3 +118,8 @@ A mocked, isolated fixture server verified title replacement at 390×844, the Ja
 - Production: backup created before restart; 1700 works, 3049 dictionary entities, 1700 links, 120 ratings, 1684 provenance rows and 1700 source claims preserved. SQLite integrity and foreign-key checks passed. Production server restarted on 8765. Test mutations never targeted the production library.
 - PWA manifest, share landing route, network-only service worker and install guidance implemented. Private Tailscale Serve setup requests administrator enablement; as of verification, HTTPS/Serve is not enabled and HTTPS cannot yet be checked. Reno5 A / Brave installation and appearance in the Android share sheet require real-device confirmation after HTTPS setup. Public Funnel is not enabled.
 - Temporary browser screenshot: `test-output/features-mobile.png` (disposable fixture). Screenshots, fixtures, databases and backups remain excluded from Git.
+
+
+### Tailscale HTTPS enabled (2026-10-12)
+
+The owner enabled Serve/HTTPS in the admin console. `enable-tailscale.ps1` completed successfully with `--bg`; Serve forwards private tailnet HTTPS to `http://127.0.0.1:8765`. Serve status has no public Funnel configuration. Certificate validation remained enabled. HTTPS GET checks passed for the app, manifest, library API (1700 works) and share landing route. A token-protected same-origin source-check POST also returned 200 without changing any work. The real browser rendered Settings over HTTPS with no console errors and the generated bookmarklet uses the HTTPS origin. Smartphone connection and PWA share-sheet registration on Reno5 A / Brave remain to be checked by the user. No claim of a phone-side installation or service-worker activation check is made.
