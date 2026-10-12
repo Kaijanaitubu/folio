@@ -16,12 +16,14 @@ Approved: 2026-10-12. These features extend the current single-owner application
 ## F-007 Named searches
 
 - Save a name (1–200 characters), query (up to 4096 characters) and sort from Library. Empty queries mean all works. The saved-search page supports opening, editing, deletion and server-side reordering.
+- Library places a bookmark icon beside the displayed query, with a localized hover/focus tooltip. It is outlined when unsaved and filled when the query (trimmed) and sort match a valid saved search. Saving refreshes the state immediately. Clicking a filled bookmark edits the matching saved search rather than creating a duplicate. The sidebar/mobile menu uses the same bookmark icon; Trash uses a trash-can icon.
 - Conditions are persisted under the owner, shared across devices. They are not result snapshots. Random sort receives a new seed when opened; scroll positions are not saved here.
 - Queries retain their literal text. Dictionary changes do not silently rewrite them. Missing rating axes, invalid comparisons and deleted rating sort axes make a saved search unavailable until edited. Rating numbers remain permanent.
 
 ## F-008 Batch editing
 
 - Select mode lets users choose cards, displayed works or all matching active works. Selecting all captures IDs; later matching additions are not silently included. Changing the query or sort clears selection.
+- Each gallery card always has a small checkbox in its upper-left corner, separate from the detail link. Checking one starts selection mode. The selection toolbar appears only in that mode: an icon-only X ends selection and clears checked IDs, followed by Displayed and All results. These three controls remain on one row at 320 px; on phones the selected count and Batch edit use a second row for legibility. During selection, clicking a card also toggles it; outside selection, it opens details normally. Pagination retains selected IDs. Ending/restarting selection invalidates pending Select all responses. Checkbox/radio focus does not hide the mobile utility bar.
 - Metadata fields: author, circle, tag, series and character. Each supports keep, add, remove selected, replace and clear. Users choose dictionary entries, retaining alias resolution and gender identity. New dictionary entries can be created through the existing picker.
 - Each rating supports keep, set 1–maximum or unset. Purchase status supports keep/yes/no; category and language support keep/set/clear. Title, cover, links, page count and review are not batch fields.
 - Preview freezes target states, patch and target count for 15 minutes. It reports changed and unchanged works and lists configured changes. It does not mutate works. Unchanged works keep their timestamp and do not generate history.
