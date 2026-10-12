@@ -2,6 +2,8 @@
 
 This is research and a recommendation, not an implemented importer or a change to current title uniqueness.
 
+Update, 2026-10-12: the user's later duplicate-policy decisions are tracked in [ROADMAP.md](ROADMAP.md) and take precedence over the older suggestions below. Matching titles may be registered separately; an already registered identical URL is skipped without a separate-entry override; another page of the same Hitomi work warns but remains registerable. Bookmark imports should offer source-title/bookmark-name selection and retain the original bookmark name internally. Detailed implementation choices and permission to start implementation are still pending.
+
 ## Access observations
 
 Direct requests from this PC to https://nhentai.net/ and https://nhentai.net/api/gallery/1 returned HTTP 403 with Cloudflare as the server. The home response was a verification page. No verification challenge was solved and no image bodies were downloaded. The web reader could not open the site's pages either. Therefore the current live metadata schema, displayed-title priority, image-host routing, and automated access cannot yet be guaranteed.
