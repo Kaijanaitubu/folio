@@ -186,3 +186,5 @@ Tests and benchmarks use isolated temporary databases inside `test-output/` and 
 | `benchmark.py` | Realistic scale benchmarks |
 
 The owner is currently `local`. Persistence is owner-scoped so future registration can attach records to accounts; actual registration/authentication/public operation remains a separate release.
+
+- [F-002 / F-003 / F-013 import specification (日本語)](IMPORT-SPEC.md)

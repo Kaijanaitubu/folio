@@ -26,3 +26,5 @@ This version uses one shared local library without account authentication. Host 
 - [nhentai and duplicate-handling proposals](media-library/NHENTAI-AND-DUPLICATES.md)
 
 The repository includes application source and documentation. Personal library databases, backups, logs, imported bookmark files, and local test output are excluded. A fresh installation creates its own empty database.
+
+- [F-002 / F-003 / F-013 import specification (日本語)](media-library/IMPORT-SPEC.md)

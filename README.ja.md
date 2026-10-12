@@ -29,3 +29,5 @@ python server.py --host 127.0.0.1 --port 8765
 - [nhentai対応と重複判定の検討案](media-library/NHENTAI-AND-DUPLICATES.md)
 
 リポジトリにはアプリのソースコードとドキュメントを含めています。個人のライブラリデータベース、バックアップ、ログ、インポートしたブックマークファイル、ローカルのテスト出力は含めません。新しくインストールすると、空のデータベースが作成されます。
+
+- [F-002 / F-003 / F-013 import specification (日本語)](media-library/IMPORT-SPEC.md)
