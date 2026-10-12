@@ -76,6 +76,8 @@ def init():
     migrate_imports()
     import features
     with transaction() as c: features.init(c)
+    import import_jobs
+    with transaction() as c: import_jobs.init(c)
 
 def migrate_imports():
     """Rebuild works with foreign keys disabled only on this migration connection."""
@@ -142,14 +144,12 @@ def source_matches(c,value):
     import importer
     value=url(value)
     if len(value)>4096: raise ValueError('Source URL is too long')
-    parsed=urlsplit(value)
-    if parsed.hostname not in ('hitomi.la','www.hitomi.la') or parsed.port not in (None,80,443):
-        raise ValueError('Use a Hitomi work or reader URL')
-    gid=importer.gallery_id(value)
-    if not gid: raise ValueError('Use a Hitomi work or reader URL')
+    identity=importer.source_identity(value)
+    if not identity: raise ValueError('Use a Hitomi or nhentai work or reader URL')
+    gid=identity[1]
     exact={r['id']:r for r in exact_sources(c,value)}; related={}
     for row in c.execute('SELECT w.id,w.title,w.deleted_at,l.url FROM works w JOIN links l ON l.work_id=w.id WHERE w.owner=? AND instr(l.url,?)>0 ORDER BY w.title,w.id,l.position',(OWNER,gid)):
-        if importer.gallery_id(row['url'])!=gid: continue
+        if importer.source_identity(row['url'])!=identity: continue
         item=work_summary(c,{'id':row['id'],'title':row['title'],'source_url':row['url'],'deleted_at':row['deleted_at']})
         related[row['id']]=item
     return {'url':value,'match':'exact' if exact else 'gallery' if related else 'none','matches':list((exact or related).values())}
@@ -209,7 +209,7 @@ def resolve(c,kind,item):
     gender=item.get('gender','neutral') if kind=='tag' else 'neutral'
     row=c.execute('SELECT id FROM entities WHERE owner=? AND kind=? AND name=? AND gender=?',(OWNER,kind,name,gender)).fetchone()
     if row: return row[0]
-    rows=c.execute('SELECT DISTINCT e.id FROM entities e JOIN aliases a ON a.entity_id=e.id WHERE e.owner=? AND e.kind=? AND e.gender=? AND a.name=?',(OWNER,kind,gender,name)).fetchall()
+    rows=[] if item.get('literal_name') else c.execute('SELECT DISTINCT e.id FROM entities e JOIN aliases a ON a.entity_id=e.id WHERE e.owner=? AND e.kind=? AND e.gender=? AND a.name=?',(OWNER,kind,gender,name)).fetchall()
     if len(rows)>1: raise ValueError('Ambiguous alias: '+name)
     if rows: return rows[0][0]
     return save_entity(c,dict(item,kind=kind))
@@ -226,6 +226,7 @@ def get_work(c,wid,opened=False,include_deleted=False):
     out['links']=[dict(l) for l in c.execute('SELECT * FROM links WHERE work_id=? ORDER BY position',(wid,))]
     out['ratings']={r['dimension_id']:r['value'] for r in c.execute('SELECT * FROM scores WHERE work_id=?',(wid,))}
     out['bookmark_names']=[r[0] for r in c.execute("SELECT DISTINCT bookmark_name FROM work_imports WHERE work_id=? AND trim(bookmark_name)<>'' ORDER BY bookmark_name",(wid,))]
+    out['source_titles']=[r[0] for r in c.execute('SELECT title FROM work_titles WHERE work_id=? ORDER BY title',(wid,))] if c.execute("SELECT 1 FROM sqlite_master WHERE name='work_titles'").fetchone() else []
     return out
 
 def save_work(c,data,wid=None):
@@ -274,6 +275,13 @@ def save_work(c,data,wid=None):
         if value is None: continue
         if did not in dims or type(value)!=int or not 1<=value<=dims[did]['maximum']: raise ValueError('Invalid rating score')
         c.execute('INSERT INTO scores VALUES(?,?,?)',(wid,did,value))
+    import import_matching
+    if c.execute("SELECT 1 FROM sqlite_master WHERE name='work_titles'").fetchone():
+        import_matching.record_titles(c,wid,[title])
+        # A browser may retain title variants only alongside a supported source.
+        import importer
+        if any(importer.source_identity(u) for _,u,_ in prepared):
+            import_matching.record_titles(c,wid,data.get('source_titles',[]))
     return dict(get_work(c,wid),warnings=[])
 
 def record_bookmark(c,wid,item,source_title,mode):

@@ -101,6 +101,7 @@ def parse_gallery(text,cover_page=1):
         warnings.append('Linked page thumbnail is unavailable; using the first page for the cover')
         cover_page=1
     out={'title':data.get('japanese_title') or data.get('title') or '', 'language':data.get('language') or '', 'pages':len(files) or None, 'author':[], 'circle':[], 'series':[], 'character':[], 'tag':[], 'cover':'', 'warnings':warnings, '_cover_hash':cover_hash}
+    out['source_titles']=list(dict.fromkeys(str(data[k]).strip() for k in ('japanese_title','title') if data.get(k)))
     # Interior pages have reader-size thumbnails; the large gallery thumbnail
     # is only generated for cover pages on the source site.
     out['_cover_directory']='webpsmalltn' if cover_page!=1 else 'webpbigtn'
@@ -119,7 +120,20 @@ def parse_gallery(text,cover_page=1):
         for g in genders or ['neutral']: out['tag'].append({'name':name,'gender':g})
     return out
 
+def source_identity(url):
+    import nhentai
+    parsed=nhentai.location(url)
+    if parsed: return ('nhentai',parsed[0])
+    try:
+        parsed=urlsplit(url)
+        if parsed.hostname not in ('hitomi.la','www.hitomi.la') or parsed.port not in (None,80,443): return None
+    except (ValueError,TypeError): return None
+    gid=gallery_id(url)
+    return ('hitomi',gid) if gid else None
+
 def import_url(url):
+    import nhentai
+    if nhentai.location(url): return nhentai.import_url(url)
     gid=gallery_id(url)
     if not gid: raise ValueError('Unsupported URL; save it as a source or enter metadata manually')
     result=parse_gallery(fetch('/galleries/'+gid+'.js'),reader_page(url))
@@ -165,7 +179,7 @@ def bookmarks(text):
     if not parser.items: raise ValueError('No bookmark links found in this HTML file')
     seen=set()
     for item in parser.items:
-        item['supported']=bool(gallery_id(item['url']))
+        item['supported']=bool(source_identity(item['url']))
         try: key=normalize_url(item['url'])
         except ValueError: key=item['url']
         item['duplicate']=key in seen; seen.add(key)

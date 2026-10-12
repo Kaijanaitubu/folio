@@ -1,5 +1,9 @@
 # Future importer and duplicate policy — discussion, 2026-10-11
 
+## 2026-10-13 implementation
+
+F-004/F-014 are implemented after user approval, including per-job Apply to all. See [NHENTAI-SPEC.md](NHENTAI-SPEC.md) for the authoritative behavior. Live anonymous metadata, cover and interior-page RAM relay checks succeeded; actual-account Favorites remains unverified until the user connects a key. The remaining sections are historical research/proposals.
+
 ## 2026-10-12 update: live official API v2 and revised user policy
 
 This update supersedes the earlier access and gender recommendations below. Old title/duplicate policy notes are historical; F-002/F-003/F-013 are already implemented.

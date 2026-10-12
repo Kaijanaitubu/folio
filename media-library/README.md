@@ -88,7 +88,7 @@ Name sorting combines A–Z and kana order, using width/case/kana normalization 
 
 ### Open a Hitomi page in Folio
 
-In Settings, find **Open from Hitomi**. Configure the Folio address for the device you will use; on a phone, open Folio with the PC LAN address rather than localhost. Copy the generated bookmark address into a browser bookmark named **Folio**. On desktop, you can instead drag the Folio link into the bookmarks bar.
+In Settings, find **Open from a source site**. Configure the Folio address for the device you will use; on a phone, open Folio with the PC LAN address rather than localhost. Copy the generated bookmark address into a browser bookmark named **Folio**. On desktop, you can instead drag the Folio link into the bookmarks bar.
 
 On a Hitomi work/reader page, run this bookmark. Android Chromium browsers may require typing the bookmark name in the address bar and selecting the saved bookmark suggestion rather than opening it from the bookmark manager. Actual Brave Android behavior still needs device verification. If it does not execute, use the Hitomi URL field in Folio Settings as a fallback.
 
@@ -179,7 +179,9 @@ Tests and benchmarks use isolated temporary databases inside `test-output/` and 
 | `server.py` | HTTP API, request protection, persistent import worker, startup/restore |
 | `db.py` | SQLite schema, transactions, relationships, directory/rating rules, backups |
 | `search.py` | Search lexer and parameterized SQL compiler |
-| `importer.py` | Hitomi adapter and safe bookmark HTML parser |
+| `importer.py` | Source dispatch, Hitomi adapter and safe bookmark HTML parser |
+| `nhentai.py` / `nhentai_credentials.py` | Official v2 metadata/Favorites and optional Windows protected key |
+| `import_jobs.py` / `import_matching.py` | Durable jobs, attribute policy, cross-site review and apply-to-all |
 | `cover_relay.py` | Restricted thumbnail fetches, bounded RAM cache, volatile image buffers |
 | `static/app.js` | Browser routes, forms, dialogs, gallery, imports |
 | `static/i18n.js` | English/Japanese interface resources |
@@ -198,3 +200,13 @@ Title candidates replace the entire typed title when selected; Save still commit
 ## Recovery, saved searches, batch editing and PWA
 
 Trash and operation history retain recoverable information for 30 days. Library selection supports batch changes with preview and undo. Named searches are shared across devices. The editor previews cover URLs without server image storage. See [feature specification](FEATURES-SPEC.md) for behavior, limits and private Tailscale HTTPS setup. On a compatible installed PWA, share a source link to Folio; PC/server availability is still required.
+
+## nhentai and Favorites
+
+Open **Imports → nhentai Favorites**, enter your API key and select **Connect / test**. This retrieves a preview without registering works. Import all matching Favorites (optional nhentai-syntax filter), or select works from the first-page preview. Choose neutral tags or the most common existing attribute. Jobs retain progress across restarts and support pause/resume/retry.
+
+Keys default to server RAM only. Optional **Remember on this PC** uses the current Windows user's DPAPI at `%LOCALAPPDATA%/Folio/nhentai-api-key.dpapi`, outside Git, SQLite and OneDrive library backups. Start the server under the same Windows account. Without remembering, reconnect the original key after restart. A different/new key requires a new additive job; registered URLs are skipped.
+
+Cross-site candidates require confirmation. **Add secondary link** changes only the URL list; it preserves primary source, cover, metadata and personal ratings. **Apply to all** handles each single-candidate item and later matches in the same job, leaving multiple candidates for manual review. Alternatively apply separate-work registration to all.
+
+Supports `/g/ID/` and `/g/ID/PAGE/`, Japanese titles first, and the linked page's thumbnail as cover. Images use the bounded RAM relay with no file persistence. Registered URLs open their existing entries from sharing/bookmarklets or skip batch imports. Removing a remote Favorite never deletes a Folio work. See [NHENTAI-SPEC.md](NHENTAI-SPEC.md) for exact rules, limits and key handling. Actual-account Favorites needs verification with the user's key.

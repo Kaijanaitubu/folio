@@ -20,6 +20,12 @@ def normalize_url(value):
             return ch if ch in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~' else '%'+m[1].upper()
         return re.sub(r'%([0-9a-fA-F]{2})',replace,text)
     path=percent(u.path or '/'); query=percent(u.query); fragment=percent(u.fragment)
+    if host=='nhentai.net':
+        match=re.fullmatch(r'/g/([1-9][0-9]*)(?:/([1-9][0-9]*))?/?',path)
+        if match:
+            path='/g/'+str(int(match[1]))+'/'+(str(int(match[2]))+'/' if match[2] else '')
+            # Gallery and reader pages remain separate; incidental tracking has no effect.
+            query=''; fragment=''
     if host=='hitomi.la' and re.fullmatch(r'/reader/\d+\.html',path):
         if not fragment: fragment='1'
         elif re.fullmatch(r'0*[1-9]\d*',fragment): fragment=str(int(fragment))

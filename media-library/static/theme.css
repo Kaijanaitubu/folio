@@ -100,3 +100,14 @@ summary { cursor: pointer; overflow-wrap: anywhere; }
  .selection-primary .btn{font-size:13px;padding:10px 12px}
  .selection-summary{flex:1 1 100%;justify-content:space-between}
 }
+
+/* Cross-site import confirmation: readable candidates and no keyboard autofocus. */
+.match-candidate{display:flex;flex-direction:row;align-items:flex-start;gap:12px;width:100%}
+.match-candidate input{flex:0 0 19px;margin-top:4px}
+.match-candidate>span{flex:1;min-width:0;margin:0}
+.match-candidate small{display:block;font-weight:400;line-height:1.55;overflow-wrap:anywhere}
+#nhentai-import .bookmark-list{max-height:300px;overflow:auto}
+#nhentai-import .check-label{display:flex;align-items:flex-start;gap:10px}
+#nhentai-import .check-label input{flex:0 0 19px}
+#nhentai-import .check-label>span{margin:0}
+#attach-existing{max-width:100%;white-space:normal;text-align:center}

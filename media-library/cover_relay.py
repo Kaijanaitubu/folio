@@ -8,6 +8,7 @@ import threading
 import time
 from urllib.parse import urlsplit
 import importer
+import nhentai
 
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 CACHE_BYTES = 32 * 1024 * 1024
@@ -83,10 +84,14 @@ CACHE = MemoryCache()
 def fetch_image(url):
     """Fetch only a canonical thumbnail on a pinned public TLS address."""
     parsed = urlsplit(url)
-    if parsed.scheme != 'https' or parsed.hostname not in IMAGE_HOSTS or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.query or parsed.fragment:
+    if parsed.scheme != 'https' or parsed.hostname not in IMAGE_HOSTS | nhentai.IMAGE_HOSTS or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.query or parsed.fragment:
         raise RelayError('Unsupported cover host')
     # Re-validate the path without another network lookup or JS execution.
-    if importer.resolve_thumbnail_url(url, (0, set(), 0)).split('.net/', 1)[1] != parsed.path.lstrip('/'):
+    if parsed.hostname in nhentai.IMAGE_HOSTS:
+        valid_path = nhentai.valid_image(url)
+    else:
+        valid_path = importer.resolve_thumbnail_url(url, (0, set(), 0)).split('.net/', 1)[1] == parsed.path.lstrip('/')
+    if not valid_path:
         raise RelayError('Unsupported cover path')
     deadline = time.monotonic() + REQUEST_SECONDS
     addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
@@ -115,13 +120,13 @@ def fetch_image(url):
         deadline_timer = threading.Timer(remaining_time(), expire_socket)
         deadline_timer.daemon = True
         deadline_timer.start()
-        connection.request('GET', parsed.path, headers={'User-Agent':'PersonalMediaLibrary/2.0', 'Referer':'https://hitomi.la/', 'Accept':'image/webp,image/avif,image/jpeg'})
+        connection.request('GET', parsed.path, headers={'User-Agent':'PersonalMediaLibrary/2.0', 'Referer':'https://nhentai.net/' if parsed.hostname in nhentai.IMAGE_HOSTS else 'https://hitomi.la/', 'Accept':'image/webp,image/avif,image/jpeg,image/png'})
         tls.settimeout(remaining_time())
         response = connection.getresponse()
         if response.status != 200:
             raise RelayError(f'Cover source returned HTTP {response.status}')
         mime = (response.getheader('Content-Type') or '').split(';')[0].strip().lower()
-        expected = {'.webp':'image/webp', '.avif':'image/avif', '.jpg':'image/jpeg'}
+        expected = {'.webp':'image/webp', '.avif':'image/avif', '.jpg':'image/jpeg', '.png':'image/png'}
         extension = '.' + parsed.path.rsplit('.', 1)[-1]
         if mime != expected.get(extension):
             raise RelayError('Cover source did not return the expected image format')
@@ -143,6 +148,7 @@ def fetch_image(url):
         if declared is not None and len(buffer) != int(declared):
             raise RelayError('Cover response was incomplete')
         valid = (mime == 'image/webp' and buffer[:4] == b'RIFF' and buffer[8:12] == b'WEBP') or (mime == 'image/jpeg' and buffer[:3] == b'\xff\xd8\xff') or (mime == 'image/avif' and buffer[4:8] == b'ftyp' and (b'avif' in buffer[8:64] or b'avis' in buffer[8:64]))
+        valid = valid or (mime == 'image/png' and buffer[:8] == b'\x89PNG\r\n\x1a\n')
         if not valid:
             raise RelayError('Cover response is not a supported image')
         return mime, bytes(buffer)
@@ -156,5 +162,7 @@ def fetch_image(url):
 
 def load(saved_url):
     # The endpoint reads a saved work's URL, never accepts a client-supplied target.
+    if nhentai.valid_image(saved_url):
+        return CACHE.get(saved_url, lambda: fetch_image(saved_url))
     url = importer.resolve_thumbnail_url(saved_url)
     return CACHE.get(url, lambda: fetch_image(url))

@@ -14,6 +14,10 @@ import db
 import features
 import importer
 import cover_relay
+import nhentai
+import nhentai_credentials
+import import_jobs
+import import_matching
 from search import CATEGORIES
 
 TOKEN=secrets.token_urlsafe(32)
@@ -30,31 +34,15 @@ def jobs(c,jid=None):
         r['counts']={s['status']:s['n'] for s in c.execute('SELECT status,count(*) n FROM job_items WHERE job_id=? GROUP BY status',(r['id'],))}
         if jid:
             r['items']=[dict(i) for i in c.execute('SELECT * FROM job_items WHERE job_id=? ORDER BY rowid',(jid,))]
-            for item in r['items']: item['warnings']=json.loads(item.pop('warnings_json'))
+            for item in r['items']:
+                item['warnings']=json.loads(item.pop('warnings_json'))
+                payload=json.loads(item.pop('payload','{}'))
+                if item['status']=='match_review': item['review_data']={k:payload.get(k) for k in ('title','author','language','pages')}
+        for field in ('tag_snapshot','credential_id'): r.pop(field,None)
     return rows[0] if jid and rows else rows
 
 def process_import_item(item):
-    # Check before any remote request, then recheck atomically when saving.
-    with db.transaction() as c:
-        matches=db.exact_sources(c,item['url'])
-        mode=c.execute('SELECT title_mode FROM jobs WHERE id=?',(item['job_id'],)).fetchone()[0]
-        if matches:
-            c.execute("UPDATE job_items SET status='duplicate_url',warnings_json=? WHERE id=?",(json.dumps({'sources':matches},ensure_ascii=False),item['id']))
-            return
-    data=importer.import_url(item['url'])
-    source_title=str(data.get('title') or '').strip(); bookmark_title=str(item.get('label') or '').strip()
-    title=(bookmark_title or source_title) if mode=='bookmark' else (source_title or bookmark_title)
-    if not title: raise ValueError('No title retrieved; retry or add manually')
-    data['title']=title; data['links']=[{'url':item['url'],'is_primary':True}]
-    with db.transaction() as c:
-        c.execute('BEGIN IMMEDIATE')
-        job=c.execute('SELECT status FROM jobs WHERE id=?',(item['job_id'],)).fetchone()
-        if not job or job[0]!='running':
-            c.execute("UPDATE job_items SET status='cancelled' WHERE id=?",(item['id'],)); return
-        warnings={'titles':db.title_matches(c,title),'related':db.source_matches(c,item['url'])['matches']}
-        result=db.save_work(c,data); wid=result['id']
-        db.record_bookmark(c,wid,item,source_title,mode)
-        c.execute("UPDATE job_items SET status='added',title=?,message=?,work_id=?,warnings_json=? WHERE id=?",(title,'; '.join(data.get('warnings',[])),wid,json.dumps(warnings,ensure_ascii=False),item['id']))
+    return import_jobs.process_item(item)
 
 def worker():
     last_backup=0; last_cleanup=0
@@ -66,29 +54,22 @@ def worker():
         with db.transaction() as c:
             if time.time()-last_cleanup>3600:
                 features.cleanup(c); last_cleanup=time.time()
-            item=c.execute("SELECT i.* FROM job_items i JOIN jobs j ON j.id=i.job_id WHERE j.status='running' AND i.status='pending' ORDER BY j.created,i.rowid LIMIT 1").fetchone()
-            if item:
-                item=dict(item); c.execute("UPDATE job_items SET status='running',attempts=attempts+1 WHERE id=?",(item['id'],))
-            else:
-                c.execute("UPDATE jobs SET status='complete' WHERE status='running' AND NOT EXISTS(SELECT 1 FROM job_items WHERE job_id=jobs.id AND status IN ('pending','running'))")
-        if not item: STOP.wait(1); continue
-        status='failed'; title=''; message=''; wid=None
-        try:
-            process_import_item(item)
-        except Exception as e:
-            message=str(e)
-            status='needs_review' if 'Ambiguous alias' in message else 'failed'
-            if isinstance(e,db.DuplicateSource): status='duplicate_url'
-            with db.transaction() as c:
-                attempts=c.execute('SELECT attempts FROM job_items WHERE id=?',(item['id'],)).fetchone()[0]
-                transient=any(s in message for s in ('429','503','timed out','Timeout'))
-                if transient and attempts<3:
-                    status='pending'
-                c.execute('UPDATE job_items SET status=?,title=?,message=? WHERE id=?',(status,title,message,item['id']))
-                if isinstance(e,db.DuplicateSource):
-                    c.execute('UPDATE job_items SET warnings_json=? WHERE id=?',(json.dumps({'sources':e.matches},ensure_ascii=False),item['id']))
-            if status=='pending': STOP.wait(min(30,2**attempts*2))
-        STOP.wait(0.5)
+            enumeration=c.execute("SELECT id FROM jobs WHERE status='running' AND enumeration_done=0 AND next_run<=? ORDER BY created LIMIT 1",(time.time(),)).fetchone()
+            item=None
+            if not enumeration:
+                item=c.execute("SELECT i.* FROM job_items i JOIN jobs j ON j.id=i.job_id WHERE j.status='running' AND i.status='pending' AND i.next_run<=? ORDER BY j.created,i.rowid LIMIT 1",(time.time(),)).fetchone()
+                if item:
+                    item=dict(item); c.execute("UPDATE job_items SET status='running',attempts=attempts+1 WHERE id=?",(item['id'],))
+                else:
+                    for row in c.execute("SELECT id FROM jobs WHERE status='running'").fetchall(): import_jobs.settle(c,row['id'])
+        if enumeration:
+            try: import_jobs.enumerate_page(enumeration['id'])
+            except Exception as e: import_jobs.failure(enumeration['id'],e)
+        elif item:
+            try: process_import_item(item)
+            except Exception as e: import_jobs.failure(item['job_id'],e,item)
+        else: STOP.wait(1); continue
+        STOP.wait(.2)
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
@@ -159,6 +140,35 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('X-Content-Type-Options','nosniff'); self.end_headers(); self.wfile.write(raw)
             finally: cover_relay.SLOTS.release()
             return
+        if action=='nhentai':
+            if self.command=='GET' and ident=='status':
+                with db.transaction() as c: result=dict(nhentai_credentials.status(),tag_mode=import_jobs.default_tag_mode(c))
+            elif self.command=='POST' and ident=='connect':
+                key=nhentai_credentials.validate(data.get('key')) if data.get('key') else nhentai_credentials.get()
+                if not key: raise nhentai.ApiError(401)
+                preview=nhentai.favorites(1,data.get('query',''),key=key)
+                if data.get('key'): nhentai_credentials.set_key(key,bool(data.get('remember')))
+                result=dict(nhentai_credentials.status(),preview=preview)
+            elif self.command=='POST' and ident=='disconnect': result=nhentai_credentials.forget()
+            elif self.command=='POST' and ident=='settings':
+                mode=data.get('tag_mode')
+                if mode not in ('neutral','frequency'): raise ValueError('Invalid nhentai tag policy')
+                with db.transaction() as c: c.execute('INSERT INTO import_settings VALUES(?,?) ON CONFLICT(owner) DO UPDATE SET tag_mode=excluded.tag_mode',(db.OWNER,mode))
+                result={'tag_mode':mode}
+            else: raise ValueError('Invalid nhentai request')
+            self.send_json(result); return
+        if action=='source-attach' and self.command=='POST':
+            with db.transaction() as c:
+                c.execute('BEGIN IMMEDIATE')
+                if not importer.source_identity(data.get('url','')): raise ValueError('Unsupported source URL')
+                result=import_matching.attach(c,data.get('target'),data['url'],data.get('source_titles',[]))
+            self.send_json(result); return
+        incoming=None
+        if action=='import' and self.command=='POST':
+            with db.transaction() as c:
+                matches=db.exact_sources(c,data['url'],data.get('exclude',''))
+                if matches: raise db.DuplicateSource(matches)
+            incoming=importer.import_url(data['url'])
         with db.transaction() as c:
             if action=='config': result={'token':TOKEN,'dimensions':db.dimensions(c),'symbols':db.SYMBOLS,'categories':CATEGORIES}
             elif action=='works':
@@ -229,7 +239,9 @@ class Handler(BaseHTTPRequestHandler):
             elif action=='import' and self.command=='POST':
                 matches=db.exact_sources(c,data['url'],data.get('exclude',''))
                 if matches: raise db.DuplicateSource(matches)
-                result=importer.import_url(data['url'])
+                result=incoming
+                if nhentai.location(data['url']): import_matching.apply_tags(c,result,data.get('tag_mode',import_jobs.default_tag_mode(c)))
+                result['cross_candidates']=import_matching.candidates(c,result,data['url'],data.get('exclude',''))
                 title=result.get('title','').strip()
                 result['title_matches']=db.title_matches(c,title,data.get('exclude','')) if title else []
                 result['related_matches']=[r for r in db.source_matches(c,data['url'])['matches'] if r['id']!=data.get('exclude','')]
@@ -239,6 +251,7 @@ class Handler(BaseHTTPRequestHandler):
                         exact=c.execute('SELECT * FROM entities WHERE owner=? AND kind=? AND gender=? AND name=?',(db.OWNER,kind,item.get('gender','neutral'),item['name'])).fetchone()
                         if exact:
                             item.update(db.entity_data(c,exact)); continue
+                        if item.get('literal_name'): continue
                         rows=c.execute('SELECT DISTINCT e.* FROM entities e JOIN aliases a ON a.entity_id=e.id WHERE e.owner=? AND e.kind=? AND e.gender=? AND a.name=?',(db.OWNER,kind,item.get('gender','neutral'),item['name'])).fetchall()
                         if len(rows)==1: item.update(db.entity_data(c,rows[0]))
                         if len(rows)>1: result['ambiguities'].append({'kind':kind,'name':item['name'],'gender':item.get('gender','neutral'),'choices':[db.entity_data(c,r) for r in rows]})
@@ -254,25 +267,12 @@ class Handler(BaseHTTPRequestHandler):
             elif action=='jobs':
                 if self.command=='GET': result=jobs(c,ident)
                 elif self.command=='POST' and ident:
-                    if len(parts)>2 and parts[2]=='cancel':
-                        c.execute("UPDATE jobs SET status='cancelled' WHERE id=? AND owner=?",(ident,db.OWNER)); c.execute("UPDATE job_items SET status='cancelled' WHERE job_id=? AND status='pending'",(ident,))
-                    elif len(parts)>2 and parts[2]=='retry':
-                        c.execute("UPDATE job_items SET status='pending',attempts=0 WHERE job_id=? AND status IN ('failed','needs_review','cancelled')",(ident,)); c.execute("UPDATE jobs SET status='running' WHERE id=? AND owner=?",(ident,db.OWNER))
-                    result=jobs(c,ident)
-                elif self.command=='POST':
-                    mode=data.get('title_mode','source')
-                    if mode not in ('source','bookmark'): raise ValueError('Invalid bookmark title preference')
-                    c.execute('BEGIN IMMEDIATE')
-                    ident=db.uid(); c.execute('INSERT INTO jobs(id,owner,status,created,title_mode) VALUES(?,?,?,?,?)',(ident,db.OWNER,'running',db.now(),mode)); seen=set()
-                    for item in data.get('items',[]):
-                        u=db.url(item['url'])
-                        if not u: continue
-                        key=db.normalize_url(u)
-                        status='pending' if importer.gallery_id(u) else 'unsupported'
-                        if key in seen or db.exact_sources(c,u): status='duplicate_url'
-                        seen.add(key)
-                        c.execute('INSERT INTO job_items(id,job_id,url,label,folder,status) VALUES(?,?,?,?,?,?)',(db.uid(),ident,u,str(item.get('label','')),str(item.get('folder','')),status))
-                    result={'id':ident}
+                    if len(parts)!=3: raise ValueError('Invalid import job action')
+                    if parts[2]=='decide': result=import_jobs.decide(c,ident,data)
+                    else:
+                        import_jobs.control(c,ident,parts[2],data); result=jobs(c,ident)
+                elif self.command=='POST': result=import_jobs.create(c,data)
+                else: raise ValueError('Invalid import job request')
             elif action=='backup' and self.command=='POST': result={'file':str(db.backup())}
             else: raise ValueError('Unknown API request')
         self.send_json(result)
