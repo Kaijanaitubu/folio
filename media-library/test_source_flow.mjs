@@ -41,6 +41,7 @@ function setup(match,matches){
   history:{replaceState:(_,__,hash)=>context.location.hash=hash},
   edit:async()=>{},nav:path=>context.navigation=path,toast:()=>{},localizeError:s=>s,
   error:(_,e)=>{throw e},structuredClone,applyImported,metadataKinds,sameMetadataSet,hasImportedChanges};
+ context.trashSourceUI={prepare:async()=>true,attach:(url,target,titles)=>context.api('source-attach','POST',{url,target,source_titles:titles})};
  vm.createContext(context);vm.runInContext(openCode+'\n'+importCode,context);
  return {context,calls,nodes,buttons};
 }
@@ -71,7 +72,7 @@ for(const choice of ['existing','cancel','new']){
  const {context,calls}=setup('none',[]);
  let finish;context.api=()=>new Promise(resolve=>finish=resolve);
  context.draft=context.blank();context.draft.links=[{url:source,is_primary:true}];
- const pending=context.interactiveImport(null,true);context.routeVersion=2;
+ const pending=context.interactiveImport(null,true);await new Promise(resolve=>setImmediate(resolve));context.routeVersion=2;
  const replacement=context.blank();context.draft=replacement;finish(structuredClone(fixture));await pending;
  assert.equal(context.draft,replacement);assert.equal(context.draft.title,'');
 }

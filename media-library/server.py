@@ -21,6 +21,7 @@ import import_jobs
 import import_matching
 import tag_policy
 import marks
+import trash_sources
 from search import CATEGORIES
 
 TOKEN=secrets.token_urlsafe(32)
@@ -167,9 +168,14 @@ class Handler(BaseHTTPRequestHandler):
                 result=import_matching.attach(c,data.get('target'),data['url'],data.get('source_titles',[]))
             self.send_json(result); return
         incoming=None
+        if action=='trash-source' and ident=='preview' and self.command=='POST':
+            with db.transaction() as c: result=trash_sources.preview(c,data.get('url',''),data.get('exclude',''))
+            self.send_json(result);return
         if action=='import' and self.command=='POST':
             with db.transaction() as c:
                 matches=db.exact_sources(c,data['url'],data.get('exclude',''))
+                approved=trash_sources.approved(c,data.get('trash_sources',[]),[data['url']],data.get('exclude',''))
+                matches=[w for w in matches if w['id'] not in approved]
                 if matches: raise db.DuplicateSource(matches)
             incoming=importer.import_url(data['url'])
         with db.transaction() as c:
@@ -184,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
                 elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='open': result=db.get_work(c,ident,True)
                 elif self.command in ('POST','PUT'):
                     if ident and not c.execute('SELECT 1 FROM works WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone(): raise ValueError('Entry not found')
-                    result=features.save_work(c,data,ident)
+                    result=trash_sources.save(c,data,ident)
                 elif self.command=='DELETE': db.delete_work(c,ident); result={'ok':True}
             elif action=='trash':
                 if self.command=='GET': result=features.trash_list(c)
@@ -260,6 +266,8 @@ class Handler(BaseHTTPRequestHandler):
                 else: result=db.source_matches(c,data.get('url',''))
             elif action=='import' and self.command=='POST':
                 matches=db.exact_sources(c,data['url'],data.get('exclude',''))
+                approved=trash_sources.approved(c,data.get('trash_sources',[]),[data['url']],data.get('exclude',''))
+                matches=[w for w in matches if w['id'] not in approved]
                 if matches: raise db.DuplicateSource(matches)
                 result=incoming
                 if importer.attribute_less_source(data['url']): import_matching.apply_tags(c,result,data.get('tag_mode',import_jobs.default_tag_mode(c)))

@@ -15,6 +15,9 @@ export function searchHelpHTML(config,lang,esc){
   [`author:alice/author:bob ${ratingExample}`,s('OR is grouped first: (Alice OR Bob) AND the last condition. Parentheses themselves cannot be entered.','ORが先にまとまります：(Alice または Bob) かつ最後の条件。検索式に括弧は入力できません。')]
  ]));
  html+=section(s('Available fields','検索できる項目'),rows([
+  ['source:nhentai',s('Partial match in any source URL or label, including secondary links.','主・副リンクすべてのURLまたはラベルの部分一致。')],
+  ['url:momon-ga.com',s('Partial match in source URLs only. Quote full URLs containing slashes: url:"https://example.com/work/".','リンク本体のみ部分一致。/ を含むURL全体は url:"https://example.com/work/" のように引用符で囲みます。')],
+  ['label:Hitomi',s('Partial match in stored link labels only. Combine with spaces, / or a leading minus.','保存したリンクラベルのみ部分一致。空白・/・先頭の - も使えます。')],
   ['title:"night sketch"',s('Partial match in the displayed work title.','表示している作品タイトルの部分一致。')],['review:"read again"',s('Partial match in your review / notes only.','レビュー・メモの部分一致。')],
   ['author:alice',s('Exact author name or alias.','作者名・別名の完全一致。')],['circle:"circle name"',s('Exact circle name or alias. group: is equivalent.','サークル名・別名の完全一致。group: も同じ意味。')],
   ['tag:original',s('Exact tag name or alias, across every attribute.','タグ名・別名の完全一致。属性を問わず検索。')],['female:original',s('Exact tag, restricted to Female. male: restricts to Male.','女性属性のタグ。male: は男性属性に限定。')],

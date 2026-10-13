@@ -70,6 +70,10 @@ def compile_query(query, dimensions, owner='local'):
                 '(SELECT e.id FROM entities e WHERE e.owner=? AND e.kind IN (' + ','.join('?' for _ in kinds) + ')' + tail +
                 ' AND (' + compare + ' OR e.id IN (SELECT a.entity_id FROM aliases a WHERE ' + alias + '))))')
     def expression(field, value):
+        if field in ('source','url','label'):
+            columns=('url','label') if field=='source' else (field,)
+            conditions=' OR '.join('instr(fold(l.'+col+'), '+p(value.casefold())+')>0' for col in columns)
+            return 'w.id IN (SELECT l.work_id FROM links l WHERE ('+conditions+'))'
         if field=='none': field='neutral'
         if field in ('title', 'review'):
             return f'instr(fold(w.{field}), {p(value.casefold())})>0'

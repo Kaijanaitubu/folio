@@ -230,3 +230,5 @@ Click **Search help** beside the Library's operator hints for the complete Engli
 Selected works can also be deleted together: click the Trash icon beside **Batch edit**, check the count in the confirmation, then confirm. They remain in Trash for 30 days and can be restored together. Cancel retains your selection.
 
 When choosing metadata for a work or batch edit, **Create new** carries the current search text into the new name field. All five metadata types support this. The Close × stays at the top right while the list scrolls; Create new remains below the list.
+
+Source search supports `source:nhentai` (URL or label), `url:momon-ga.com` (URL), and `label:Hitomi` (stored label), across primary and secondary links. Quote full URLs containing slashes. Search help includes examples. Individually reusing a Trash link asks for confirmation: primary reuse registers anew, while secondary reuse offers metadata merge/overwrite/keep. Permanent deletion happens only with successful Save. Batch imports continue to skip registered URLs. See [Trash and source-link specification](TRASH-LINKS-SPEC.md).

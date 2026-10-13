@@ -22,6 +22,7 @@ function setup(language='en'){
  const nodes=new Map(),context={draft:work(),routeVersion:1,applyImported,metadataKinds,sameMetadataSet,hasImportedChanges,displayName:e=>e.name,esc:s=>String(s).replaceAll('<','&lt;'),t:k=>(language==='ja'?ja:en)[k]||k,btn:()=>'',dialog:{},localizeError:s=>s,modal:html=>context.html=html,closeModal:()=>{},api:async()=>structuredClone(context.incoming),edit:()=>context.edited=true,toast:text=>context.lastToast=text,error:(_,e)=>{throw e}};
  context.incoming=imported();context.$=s=>{if(!nodes.has(s))nodes.set(s,{isConnected:true});return nodes.get(s)};
  context.$$=s=>s==='[data-import-mode]'?context.modes||[]:s==='[data-replace]:checked'?context.replacements||[]:context.aliasButtons||[];
+ context.trashSourceUI={prepare:async()=>true,attach:(url,target,titles)=>context.api('source-attach','POST',{url,target,source_titles:titles})};
  vm.createContext(context);vm.runInContext(code,context);return {context,nodes};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));

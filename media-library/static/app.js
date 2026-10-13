@@ -10,6 +10,7 @@ import {en,ja} from './i18n.js';
 import {localizeError} from './errors.js';
 import {bookmarklet} from './source-link.js';
 import {pageTitle} from './page-title.js';
+import {createTrashSourceUI} from './trash-source-ui.js';
 Object.assign(en,featureEn,nhentaiEn,tagEn,markEn);Object.assign(ja,featureJa,nhentaiJa,tagJa,markJa);
 const $=(s,root=document)=>root.querySelector(s), $$=(s,root=document)=>[...root.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -89,6 +90,7 @@ async function suggest(input){clearTimeout(suggestionTimer);const seq=++suggesti
 async function detail(id){const version=routeVersion;const w=await api('works/'+id+'/open','POST',{});if(version!==routeVersion)return;currentWork=w;const source=w.links.find(l=>l.is_primary);shell('library',`<div class="row between"><a class="btn ghost" href="#${esc(librarySnapshot?.hash||'/library')}">${icon('arrow')}${esc(t('back'))}</a>${btn(t('edit'),'edit-work','','edit')}</div><div class="detail"><div class="detail-cover">${source?`<a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${image(w)}</a>`:image(w)}</div><div><div class="eyebrow">${esc(w.category?t(w.category):t('library'))}</div><div class="work-heading"><h1>${esc(w.title)}</h1><div id="detail-marks">${markUI.detail(w)}</div></div><div class="ratings">${config.dimensions.map(d=>ratingDisplay(w,d)).join('')}</div><div class="row wrap"><span class="tag">${esc(w.language||t('notSpecified'))}</span>${w.pages!=null?`<span class="tag">${esc(t('pages'))}: ${w.pages}</span>`:''}${source?`<a class="btn primary" href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${esc(t('openSource'))}</a>`:''}</div><div class="meta">${['author','circle','tag','series','character'].filter(k=>k==='author'||k==='circle'||w[k].length).map(k=>`<div><label>${esc(t(k))}</label>${w[k].length?`<div class="row wrap">${w[k].map(e=>`<a class="tag ${e.gender}" href="${esc(metadataHref(e,k))}">${esc(displayName(e))}</a>`).join('')}</div>`:`<span class="muted small">${esc(t('notSpecified'))}</span>`}</div>`).join('')}${w.review?`<div><label>${esc(t('review'))}</label><p class="review">${esc(w.review)}</p></div>`:''}${w.links.length?`<div><label>${esc(t('sources'))}</label><div class="source-list">${w.links.map(l=>`<a class="source-link" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}<span>${esc(l.label||l.url)}</span>${l.is_primary?`<span class="tag">${esc(t('primary'))}</span>`:''}</a>`).join('')}</div></div>`:''}</div></div></div>`);images();let markedWork=w;markUI.bind($('#detail-marks'),()=>markedWork,result=>{markedWork=result;currentWork=result},true);$('#edit-work').onclick=()=>nav('/edit/'+id)}
 
 const dialog=$('#dialog');
+const trashSourceUI=createTrashSourceUI({api,modal,closeModal,dialog,$,$$,esc,t,lang:()=>lang});
 function modal(html){dialog.innerHTML=html;dialog.showModal()}
 function closeModal(){dialog.close();dialog.innerHTML=''}
 async function confirm(title,text,action=t('delete')){return new Promise(resolve=>{modal(`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="actions">${btn(t('cancel'),'confirm-no')}${btn(action,'confirm-yes','primary')}</div>`);$('#confirm-no').onclick=()=>{closeModal();resolve(false)};$('#confirm-yes').onclick=()=>{closeModal();resolve(true)};dialog.oncancel=()=>resolve(false)})}
@@ -127,12 +129,13 @@ async function edit(id,reuse=false){if(!reuse||!draft){draft=id?await api('works
   $('#import-metadata').insertAdjacentHTML('afterend',btn(t('linkExisting'),'attach-existing'));
   $('#attach-existing').onclick=async()=>{try{
    const link=draft.links.find(l=>l.is_primary&&l.url)||draft.links.find(l=>l.url);if(!link)return toast(t('addLink'));
-   const decision=await nhentaiUI.chooseMatch(draft,[]);if(decision?.action!=='attach')return;
-   const result=await api('source-attach','POST',{url:link.url,target:decision.target,source_titles:draft.source_titles||[]});draft=null;markLibraryDirty();nav('/work/'+result.id)
+   const active=draft,version=routeVersion,current=()=>draft===active&&routeVersion===version;
+   const decision=await nhentaiUI.chooseMatch(draft,[]);if(decision?.action!=='attach'||!current())return;
+   const result=await trashSourceUI.attach(link.url,decision.target,draft.source_titles||[],current);if(!result||!current())return;draft=null;markLibraryDirty();nav('/work/'+result.id)
   }catch(e){error($('#form-error'),e)}};
  }
 }
-async function saveDraft(id){const b=$('#save-work');b.disabled=true;try{if(!$('#entry-form').reportValidity())return;const result=await api('works'+(id?'/'+id:''),id?'PUT':'POST',draft);draft=null;markLibraryDirty();if(result.warnings.length)toast(t('duplicateSource')+' '+result.warnings.join(', '));else toast(t('saved'));nav('/work/'+result.id)}catch(e){error($('#form-error'),e);$('#form-error').scrollIntoView({block:'center'})}finally{if(b.isConnected)b.disabled=false}}
+async function saveDraft(id){const b=$('#save-work');b.disabled=true;try{if(!$('#entry-form').reportValidity())return;const active=draft,version=routeVersion;if(!await trashSourceUI.prepare(active,id,()=>draft===active&&routeVersion===version))return;const result=await api('works'+(id?'/'+id:''),id?'PUT':'POST',draft);draft=null;markLibraryDirty();if(result.warnings.length)toast(t('duplicateSource')+' '+result.warnings.join(', '));else toast(t('saved'));nav('/work/'+result.id)}catch(e){error($('#form-error'),e);$('#form-error').scrollIntoView({block:'center'})}finally{if(b.isConnected)b.disabled=false}}
 async function chooseMetadata(kind,onSelect){
  modal(`<div class="metadata-picker-header"><h2>${esc(t('choose'))}: ${esc(t(kind))}</h2><button type="button" id="choose-close" class="iconbtn" aria-label="${esc(t('close'))}" title="${esc(t('close'))}">${icon('x')}</button></div><div class="stack"><input id="choose-query" autofocus placeholder="${esc(t('searchMetadata'))}"><div id="choose-list" class="directory-list"></div></div><div class="actions">${btn(t('createNew'),'choose-new','primary','plus')}</div>`);
  const input=$('#choose-query');let sequence=0,timer;
@@ -186,7 +189,9 @@ async function interactiveImport(id,sourceDraft=false){
  if(draft!==activeDraft||routeVersion!==importVersion)return;
  const b=$('#import-metadata');b.disabled=true;b.textContent=t('loading');
  try{
-  const incoming=await api('import','POST',{url:link.url,exclude:id||''});
+  if(!await trashSourceUI.prepare(activeDraft,id,()=>draft===activeDraft&&routeVersion===importVersion,link))return;
+  if(!link.is_primary&&activeDraft.trash_sources?.some(c=>c.url===link.url)){await edit(id,true);toast(t('importDone'));return;}
+  const incoming=await api('import','POST',{url:link.url,exclude:id||'',trash_sources:(draft.trash_sources||[]).filter(c=>c.url===link.url)});
   const current=()=>draft===activeDraft&&routeVersion===importVersion;
   if(!current())return;
   for(const ambiguity of incoming.ambiguities||[]){
@@ -200,7 +205,7 @@ async function interactiveImport(id,sourceDraft=false){
    const decision=await nhentaiUI.chooseMatch(incoming,matchChoices);
    if(!decision||!current())return;
    if(decision.action==='attach'){
-    const result=await api('source-attach','POST',{url:link.url,target:decision.target,source_titles:incoming.source_titles||[incoming.title]});
+    const result=await trashSourceUI.attach(link.url,decision.target,incoming.source_titles||[incoming.title],current);if(!result||!current())return;
     draft=null;markLibraryDirty();nav('/work/'+result.id);return;
    }
    titleReviewed=true;
@@ -309,7 +314,7 @@ async function openSource(version){
  const value=route().params.get('url')||'';
  shell('library',heading(t('sourceChecking'),t('sourceToolsHint')));
  const result=await api('source-check','POST',{url:value});if(version!==routeVersion)return;
- if(result.match==='exact'&&result.matches.length&&result.matches.every(w=>w.deleted_at)){await showTrashedSource(result.matches);return}
+ if(result.match==='exact'&&result.matches.length&&result.matches.every(w=>w.deleted_at)){await showTrashedSource(result.matches,value);return}
  if(result.match==='gallery'){
  const choice=await new Promise(resolve=>{modal(`<h2>${esc(t('sourceRelatedTitle'))}</h2><p>${esc(t('sourceRelatedHint'))}</p><div class="stack source-related-list">${result.matches.map(w=>`<button type="button" class="btn source-related-item" data-source-work="${w.id}"><b>${esc(w.title)}</b><small>${esc(w.source_url)}${w.deleted_at?' · '+esc(t('trash')):''}</small></button>`).join('')}</div><div class="actions wrap">${btn(t('cancel'),'source-cancel')}${btn(t('sourceImportNew'),'source-import-new','primary')}</div>`);$$('[data-source-work]').forEach(b=>b.onclick=()=>{closeModal();resolve(b.dataset.sourceWork)});$('#source-cancel').onclick=()=>{closeModal();resolve(null)};$('#source-import-new').onclick=()=>{closeModal();resolve('new')};dialog.oncancel=()=>resolve(null)});
  if(version!==routeVersion)return;if(choice===null){nav('/library');return}if(choice!=='new'){const chosen=result.matches.find(w=>w.id===choice);if(chosen?.deleted_at)await showTrashedSource([chosen]);else nav('/work/'+choice);return}
@@ -424,10 +429,16 @@ async function restoreEntries(ids){
  if(preview.missing.length&&!await confirm(t('restoreWarning'),preview.missing.map(x=>x.title+': '+x.names.join(', ')).join('\n'),t('continueRestore')))return false;
  await api('trash/restore','POST',{ids,signature:preview.signature});return true;
 }
-async function showTrashedSource(matches){
- shell('trash',heading(t('trash'),t('trashFound'))+`<div class="directory-list">${matches.map(w=>`<div class="directory-row"><div><b>${esc(w.title)}</b><small>${esc(w.source_url||'')}</small></div><button class="btn primary" data-source-restore="${w.id}">${esc(t('restore'))}</button></div>`).join('')}</div>`);
- $$('[data-source-restore]').forEach(b=>b.onclick=safely(async()=>{if(await restoreEntries([b.dataset.sourceRestore])){markLibraryDirty();nav('/work/'+b.dataset.sourceRestore)}}));
+async function showTrashedSource(matches,value){
+ if(!value){nav('/trash');return;}
+ draft=blank();baseline=JSON.stringify(draft);draft.links=[{url:value,label:'',is_primary:true}];
+ const active=draft,version=routeVersion;
+ if(!await trashSourceUI.prepare(active,'',()=>draft===active&&routeVersion===version)){if(draft===active&&routeVersion===version){draft=null;nav('/trash');}return;}
+ history.replaceState(null,'','#/new');previousHash=location.hash;await edit(null,true);
+ if(importerSourceURL(value))await interactiveImport(null,true);
 }
+function importerSourceURL(value){return /^https?:\/\/(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)}
+
 const mergeLabel=e=>displayName(e)+(e.gender&&e.gender!=='neutral'?' · '+t(e.gender):'');
 async function historyPage(){
  const items=await api('history');shell('history',heading(t('history'),t('historyHint'))+`<div class="directory-list">${items.map(h=>`<div class="directory-row"><div><b>${esc(t(h.kind+'Operation'))}</b><div class="subtitle">${esc(new Date(h.created).toLocaleString(lang))} · ${h.count} ${esc(t('works'))}</div><div class="subtitle">${h.merge?esc(mergeLabel(h.merge.source)+' → '+mergeLabel(h.merge.target))+'<br>':''}${h.titles.map(esc).join(' · ')}</div><div class="subtitle">${h.scale?esc(h.scale.name+' · '+h.scale.before+' → '+h.scale.after):h.fields.map(k=>esc(t(k))).join(', ')}</div></div><button class="btn" data-undo="${h.id}" ${h.undone?'disabled':''}>${esc(t(h.undone?'undone':'undo'))}</button></div>`).join('')||`<p>${esc(t('historyEmpty'))}</p>`}</div>`);
@@ -499,7 +510,7 @@ async function sharedPage(version){
 async function openSharedUrl(value,version){
  if(/^(https?:\/\/)(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)){nav('/source?'+new URLSearchParams({url:value}));return}
  const lookup=await api('source-check','POST',{url:value,generic:true});if(version!==routeVersion)return;
- if(lookup.matches.length){if(lookup.matches.every(w=>w.deleted_at)){await showTrashedSource(lookup.matches);return}nav('/work/'+lookup.matches.find(w=>!w.deleted_at).id);return}
+ if(lookup.matches.length){if(lookup.matches.every(w=>w.deleted_at)){await showTrashedSource(lookup.matches,value);return}nav('/work/'+lookup.matches.find(w=>!w.deleted_at).id);return}
  draft=blank();baseline=JSON.stringify(draft);draft.links=[{url:value,label:'',is_primary:true}];history.replaceState(null,'','#/new');previousHash=location.hash;await edit(null,true);toast(t('sharedManual'));
 }
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;if(route().path==='/settings')mountInstallTools()});
