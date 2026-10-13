@@ -123,3 +123,28 @@ function bookmarkSetup(){
  const {context,input,button}=bookmarkSetup();context.draft=work();button.onclick();assert.equal(input.value,'Typed title');
 }
 console.log('Import flow checks passed: EN/JA, overwrite/merge/keep, unchanged resolved sets and scalar values, no-op imports, mobile pointer/blur selection, keyboard selection, cancellation and stale responses.');
+
+// New/bookmarklet drafts always offer secondary attachment for a title warning,
+// even with conflicting authors, the same provider, or no automatic candidates.
+for(const automatic of [[],[{id:'other',title:'New title',evidence:{author:true}}]]){
+ const {context}=setup();let calls=[];
+ context.incoming.title_matches=[{id:'other',title:'New title',authors:['Other author']}];
+ context.incoming.cross_candidates=automatic;
+ context.nhentaiUI={chooseMatch:async(incoming,choices)=>{
+  assert.equal(choices.length,1);assert.equal(choices[0].id,'other');
+  if(automatic.length)assert.equal(choices[0].evidence.author,true);
+  return {action:'attach',target:'other'};
+ }};
+ context.api=async(path,method,data)=>{calls.push({path,data});return path==='source-attach'?{id:'other'}:structuredClone(context.incoming)};
+ context.markLibraryDirty=()=>context.dirty=true;context.nav=url=>context.destination=url;
+ await context.interactiveImport(null,true);
+ assert.equal(calls[1].path,'source-attach');assert.equal(calls[1].data.target,'other');
+ assert.equal(context.destination,'/work/other');assert.equal(context.draft,null);assert.equal(context.edited,undefined);
+}
+{
+ const {context}=setup(),before=JSON.stringify(context.draft);
+ context.incoming.title_matches=[{id:'other',title:'New title'}];
+ context.nhentaiUI={chooseMatch:async()=>null};
+ await context.interactiveImport(null,true);
+ assert.equal(JSON.stringify(context.draft),before);assert.equal(context.edited,undefined);
+}

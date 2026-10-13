@@ -128,7 +128,8 @@ def work_summary(c,row):
     return out
 
 def title_matches(c,title,exclude=''):
-    return [work_summary(c,r) for r in c.execute('SELECT id,title FROM works WHERE deleted_at IS NULL AND owner=? AND title=? AND id<>? ORDER BY created,id',(OWNER,title,exclude))]
+    import import_matching
+    return import_matching.title_matches(c,[title],exclude)
 
 def exact_sources(c,value,exclude=''):
     key=normalize_url(value)

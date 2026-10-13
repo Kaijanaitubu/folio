@@ -41,6 +41,10 @@ def init(c):
             work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
             if work: c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
         c.execute('INSERT INTO migrations VALUES(5,?)',(db.now(),))
+    if not c.execute('SELECT 1 FROM migrations WHERE version=6').fetchone():
+        for row in c.execute('SELECT work_id,title FROM work_titles').fetchall():
+            c.execute('UPDATE work_titles SET title_key=? WHERE work_id=? AND title=?',(matching.title_key(row['title']),row['work_id'],row['title']))
+        c.execute('INSERT INTO migrations VALUES(6,?)',(db.now(),))
 
 def default_tag_mode(c):
     row=c.execute('SELECT tag_mode FROM import_settings WHERE owner=?',(db.OWNER,)).fetchone()

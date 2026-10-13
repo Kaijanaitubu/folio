@@ -243,7 +243,8 @@ class Handler(BaseHTTPRequestHandler):
                 if nhentai.location(data['url']): import_matching.apply_tags(c,result,data.get('tag_mode',import_jobs.default_tag_mode(c)))
                 result['cross_candidates']=import_matching.candidates(c,result,data['url'],data.get('exclude',''))
                 title=result.get('title','').strip()
-                result['title_matches']=db.title_matches(c,title,data.get('exclude','')) if title else []
+                result['title_matches']=import_matching.title_matches(c,[title,*result.get('source_titles',[])],data.get('exclude','')) if title else []
+                for match in result['title_matches']: match['evidence']=import_matching.candidate_evidence(c,match,result)
                 result['related_matches']=[r for r in db.source_matches(c,data['url'])['matches'] if r['id']!=data.get('exclude','')]
                 result['ambiguities']=[]
                 for kind in ('tag','author','circle','series','character'):

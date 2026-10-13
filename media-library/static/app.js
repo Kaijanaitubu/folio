@@ -83,7 +83,7 @@ function modal(html){dialog.innerHTML=html;dialog.showModal()}
 function closeModal(){dialog.close();dialog.innerHTML=''}
 async function confirm(title,text,action=t('delete')){return new Promise(resolve=>{modal(`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="actions">${btn(t('cancel'),'confirm-no')}${btn(action,'confirm-yes','primary')}</div>`);$('#confirm-no').onclick=()=>{closeModal();resolve(false)};$('#confirm-yes').onclick=()=>{closeModal();resolve(true)};dialog.oncancel=()=>resolve(false)})}
 const nhentaiUI=createNhentaiUI({$, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty});
-const relayCover=url=>/^https?:\/\/(?:[ab]?tn)\.(?:hitomi\.la|gold-usergeneratedcontent\.net)\//.test(url)||/^https:\/\/t[123]?\.nhentai\.net\//.test(url);
+const relayCover=url=>/^https?:\/\/(?:[ab]?tn)\.(?:hitomi\.la|gold-usergeneratedcontent\.net)\//.test(url)||/^https:\/\/t[1234]?\.nhentai\.net\//.test(url);
 const field=(key,value='',type='text',extra='')=>`<label><span>${esc(t(key))}</span><input data-field="${key}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 function blank(){return {title:'',cover:'',category:'',language:'',pages:null,review:'',bought:false,author:[],circle:[],tag:[],series:[],character:[],links:[],ratings:{}}}
 function scoreEditor(d){const n=draft.ratings[d.id]||0;return `<div><span class="field-title">${d.number}. ${esc(d.name)} <small>(${d.maximum})</small></span><div class="score-editor">${Array.from({length:d.maximum},(_,i)=>`<button type="button" data-score="${d.id}:${i+1}" class="${i<n?'on':''}" aria-label="${esc(d.name)} ${i+1}/${d.maximum}">${symbols[d.symbol][i<n?0:1]}</button>`).join('')}<button type="button" class="clear-score" data-score="${d.id}:0">${esc(t('clearRating'))}</button><small>${n?`${n}/${d.maximum}`:esc(t('unrated'))}</small></div></div>`}
@@ -161,17 +161,20 @@ async function interactiveImport(id,sourceDraft=false){
    if(!selected||!current())return;
    for(let i=0;i<incoming[ambiguity.kind].length;i++){const e=incoming[ambiguity.kind][i];if(e.name===ambiguity.name&&(e.gender||'neutral')===ambiguity.gender)incoming[ambiguity.kind][i]=selected}
   }
-  if(!id&&incoming.cross_candidates?.length){
-   const decision=await nhentaiUI.chooseMatch(incoming,incoming.cross_candidates);
+  let titleReviewed=false;
+  const matchChoices=[...new Map([...(incoming.title_matches||[]),...(incoming.cross_candidates||[])].map(w=>[w.id,w])).values()];
+  if(!id&&matchChoices.length){
+   const decision=await nhentaiUI.chooseMatch(incoming,matchChoices);
    if(!decision||!current())return;
    if(decision.action==='attach'){
     const result=await api('source-attach','POST',{url:link.url,target:decision.target,source_titles:incoming.source_titles||[incoming.title]});
     draft=null;markLibraryDirty();nav('/work/'+result.id);return;
    }
+   titleReviewed=true;
   }
   if(!hasImportedChanges(draft,incoming)){toast(t('importNoChanges')+(incoming.warnings?.length?' · '+incoming.warnings.map(w=>localizeError(w,lang)).join('; '):''));return}
-  if(incoming.title_matches?.length||!sourceDraft&&incoming.related_matches?.length){
-   const accepted=await new Promise(resolve=>{modal(`<h2>${esc(t('importWarnings'))}</h2>${incoming.title_matches?.length?`<p>${esc(t('sameTitleHint'))}</p>${summaryCards(incoming.title_matches)}`:''}${!sourceDraft&&incoming.related_matches?.length?`<p>${esc(t('sourceRelatedHint'))}</p>${summaryCards(incoming.related_matches)}`:''}<div class="actions">${btn(t('cancel'),'import-warning-cancel')}${btn(t('continueImport'),'import-warning-continue','primary')}</div>`);$('#import-warning-cancel').onclick=()=>{closeModal();resolve(false)};$('#import-warning-continue').onclick=()=>{closeModal();resolve(true)};dialog.oncancel=()=>resolve(false)});
+  if((!titleReviewed&&incoming.title_matches?.length)||(!sourceDraft&&incoming.related_matches?.length)){
+   const accepted=await new Promise(resolve=>{modal(`<h2>${esc(t('importWarnings'))}</h2>${!titleReviewed&&incoming.title_matches?.length?`<p>${esc(t('sameTitleHint'))}</p>${summaryCards(incoming.title_matches)}`:''}${!sourceDraft&&incoming.related_matches?.length?`<p>${esc(t('sourceRelatedHint'))}</p>${summaryCards(incoming.related_matches)}`:''}<div class="actions">${btn(t('cancel'),'import-warning-cancel')}${btn(t('continueImport'),'import-warning-continue','primary')}</div>`);$('#import-warning-cancel').onclick=()=>{closeModal();resolve(false)};$('#import-warning-continue').onclick=()=>{closeModal();resolve(true)};dialog.oncancel=()=>resolve(false)});
    if(!accepted||!current())return;
   }
   const singles=['title','cover','category','language','pages'];

@@ -1,5 +1,6 @@
 """Attribute policy and explainable cross-source candidates. No fuzzy auto-merge."""
 import json
+import re
 import unicodedata
 import db
 import importer
@@ -8,12 +9,42 @@ import features
 def key(value):
     return ' '.join(unicodedata.normalize('NFKC',str(value or '')).casefold().split())
 
+def title_key(value):
+    """Ignore leading source credit blocks, never rewrite the displayed title.
+
+    Keep chapter/volume/edition qualifiers and bracket-only titles intact.
+    This is candidate evidence, not permission to merge works automatically.
+    """
+    title=key(value)
+    protected=r'(?:\d+(?:[\s._-]*\d+)*|(?:chapter|chap|ch|volume|vol|part|episode|ep|book|season)[\s.:#_-]*[0-9ivxlcdm]+(?:[\s._-]*[0-9ivxlcdm]+)*|第.+[話巻章集]|[上下前後]編|[上下]巻|(?:english|japanese|chinese|korean|spanish|french|german)(?: translation)?|translated|translation|uncensored|censored|digital|revised|complete|日本語|英語|中国語|韓国語|翻訳|修正|無修正|総集編)'
+    while True:
+        block=re.match(r'^\[([^\[\]]+)\]\s*(.+)$',title)
+        if not block or re.fullmatch(protected,block[1].strip()): break
+        title=block[2].strip()
+    return title
+
 def record_titles(c,wid,titles):
     if not isinstance(titles,list) or len(titles)>30: raise ValueError('Too many source title variants')
     for title in titles:
         title=str(title).strip()
         if title and len(title)<=4096:
-            c.execute('INSERT OR IGNORE INTO work_titles VALUES(?,?,?)',(wid,title,key(title)))
+            c.execute('INSERT OR IGNORE INTO work_titles VALUES(?,?,?)',(wid,title,title_key(title)))
+
+def title_matches(c,titles,exclude=''):
+    keys={title_key(t) for t in titles if title_key(t)}
+    if not keys: return []
+    placeholders=','.join('?' for _ in keys)
+    rows=c.execute(f'SELECT DISTINCT w.id,w.title,w.pages,w.language FROM works w JOIN work_titles t ON t.work_id=w.id WHERE w.owner=? AND w.deleted_at IS NULL AND w.id<>? AND t.title_key IN ({placeholders}) ORDER BY w.created,w.id LIMIT 100',(db.OWNER,exclude,*keys))
+    return [db.work_summary(c,r) for r in rows]
+
+def candidate_evidence(c,work,data):
+    incoming={key(n) for a in data.get('author',[]) for n in [a['name'],*a.get('aliases',[])]}
+    names=set()
+    for author in c.execute("SELECT e.id,e.name FROM entities e JOIN work_entities we ON we.entity_id=e.id WHERE we.work_id=? AND e.kind='author'",(work['id'],)):
+        names.add(key(author['name']))
+        names.update(key(r[0]) for r in c.execute('SELECT name FROM aliases WHERE entity_id=?',(author['id'],)))
+    overlap=bool(names & incoming)
+    return {'title':True,'author':overlap,'author_conflict':bool(names and incoming and not overlap),'language':not work['language'] or not data.get('language') or key(work['language'])==key(data['language']),'pages':work['pages'] is None or data.get('pages') is None or work['pages']==data['pages']}
 
 def tag_snapshot(c):
     rows=c.execute("SELECT e.id,e.name,e.gender,count(w.id) AS uses FROM entities e LEFT JOIN work_entities we ON we.entity_id=e.id LEFT JOIN works w ON w.id=we.work_id AND w.deleted_at IS NULL WHERE e.owner=? AND e.kind='tag' GROUP BY e.id",(db.OWNER,)).fetchall()
@@ -56,26 +87,19 @@ def apply_tags(c,data,mode='neutral',snapshot=None):
 def candidates(c,data,value,exclude=''):
     identity=importer.source_identity(value)
     if not identity: return []
-    titles={key(t) for t in [data.get('title',''),*data.get('source_titles',[])] if key(t)}
+    titles={title_key(t) for t in [data.get('title',''),*data.get('source_titles',[])] if title_key(t)}
     if not titles: return []
     placeholders=','.join('?' for _ in titles)
     rows=c.execute(f'SELECT DISTINCT w.id,w.title,w.pages,w.language FROM works w JOIN work_titles t ON t.work_id=w.id WHERE w.owner=? AND w.deleted_at IS NULL AND w.id<>? AND t.title_key IN ({placeholders}) ORDER BY w.created,w.id',(db.OWNER,exclude,*titles)).fetchall()
-    incoming_authors=set()
-    for a in data.get('author',[]): incoming_authors.update(key(n) for n in [a['name'],*a.get('aliases',[])])
     found=[]
     for row in rows:
         sources=[importer.source_identity(r[0]) for r in c.execute('SELECT url FROM links WHERE work_id=?',(row['id'],))]
         # This workflow compares different providers, not intentional pages on one provider.
         if not any(s and s[0]!=identity[0] for s in sources): continue
-        authors=c.execute("SELECT e.* FROM entities e JOIN work_entities we ON we.entity_id=e.id WHERE we.work_id=? AND e.kind='author'",(row['id'],)).fetchall()
-        names=set()
-        for a in authors:
-            names.add(key(a['name']))
-            names.update(key(r[0]) for r in c.execute('SELECT name FROM aliases WHERE entity_id=?',(a['id'],)))
-        overlap=bool(names & incoming_authors)
-        if names and incoming_authors and not overlap: continue
+        evidence=candidate_evidence(c,row,data)
+        if evidence['author_conflict']: continue
         result=db.work_summary(c,row)
-        result['evidence']={'title':True,'author':overlap,'language':not row['language'] or not data.get('language') or key(row['language'])==key(data['language']), 'pages':row['pages'] is None or data.get('pages') is None or row['pages']==data['pages']}
+        result['evidence']=evidence
         found.append(result)
         if len(found)>=100: break
     return found

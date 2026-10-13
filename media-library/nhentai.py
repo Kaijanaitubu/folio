@@ -12,7 +12,7 @@ from urllib.parse import urlsplit, urlencode
 import nhentai_credentials as credentials
 
 HOST = 'nhentai.net'
-IMAGE_HOSTS = {'t.nhentai.net', 't1.nhentai.net', 't2.nhentai.net', 't3.nhentai.net'}
+IMAGE_HOSTS = {'t.nhentai.net', *(f't{i}.nhentai.net' for i in range(1,5))}
 MAX_JSON = 8 * 1024 * 1024
 _lock = threading.Lock()
 _next = {'favorites': 0, 'details': 0}
@@ -35,8 +35,12 @@ def location(value):
     except (ValueError, TypeError): return None
 
 def image_url(path):
+    if str(path or '').startswith('https://'):
+        if not valid_image(path): raise ValueError('nhentai image URL is unsupported')
+        return path
     path = str(path or '').lstrip('/')
-    if not re.fullmatch(r'galleries/[0-9]{1,15}/(?:cover|thumb|[1-9][0-9]{0,7}t)\.(?:jpg|png|webp|avif)', path):
+    # The official API also returns converted paths such as cover.webp.webp.
+    if not re.fullmatch(r'galleries/[0-9]{1,15}/(?:cover|thumb|[1-9][0-9]{0,7}t)\.(?:jpg|jpeg|png|webp|avif|gif)(?:\.webp)?', path):
         raise ValueError('nhentai image path is unsupported')
     return 'https://t.nhentai.net/' + path
 
@@ -122,13 +126,23 @@ def parse_gallery(data, page=None):
             if category: out['category']=category
             else: out['warnings'].append('Unrecognized source category: '+name)
         elif kind=='language' and name.casefold() not in ('translated','rewrite'): out['language']=name
-    path = (data.get('cover') or {}).get('path','')
+    paths = [(data.get('cover') or {}).get('path',''),(data.get('thumbnail') or {}).get('path','')]
     if page is not None:
         selected = next((p for p in data.get('pages',[]) if p.get('number')==page),None)
-        if selected: path=selected.get('thumbnail') or path
+        if selected:
+            # Keep the requested page when its explicit thumbnail is missing.
+            original=str(selected.get('path') or '').lstrip('/')
+            derived=re.sub(r'/'+str(page)+r'\.(jpg|jpeg|png|webp|avif|gif)$',r'/'+str(page)+r't.\1',original) if re.fullmatch(r'galleries/[0-9]{1,15}/'+str(page)+r'\.(jpg|jpeg|png|webp|avif|gif)',original) else ''
+            paths=[selected.get('thumbnail') or '',derived]
         else: out['warnings'].append('Linked page is unavailable; using the cover')
-    try: out['cover'] = image_url(path)
-    except ValueError: out['warnings'].append('Cover URL unavailable; other metadata was retrieved')
+    for path in paths:
+        try: out['cover']=image_url(path); break
+        except ValueError: continue
+    if not out['cover']:
+        out['warnings'].append('Cover URL unavailable; other metadata was retrieved')
+        # Public source paths help diagnose schema/format changes; no image
+        # bytes or credentials. Not stored on a work or rendered as a URL.
+        out['cover_diagnostics']={'paths':[str(p)[:512] for p in paths]}
     if not out['title']: out['warnings'].append('No title was retrieved')
     return out
 

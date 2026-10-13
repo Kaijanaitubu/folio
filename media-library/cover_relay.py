@@ -126,9 +126,11 @@ def fetch_image(url):
         if response.status != 200:
             raise RelayError(f'Cover source returned HTTP {response.status}')
         mime = (response.getheader('Content-Type') or '').split(';')[0].strip().lower()
-        expected = {'.webp':'image/webp', '.avif':'image/avif', '.jpg':'image/jpeg', '.png':'image/png'}
+        expected = {'.webp':'image/webp', '.avif':'image/avif', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png', '.gif':'image/gif'}
         extension = '.' + parsed.path.rsplit('.', 1)[-1]
-        if mime != expected.get(extension):
+        # nhentai negotiates WebP even for saved .jpg/.png paths. Validate
+        # the actual MIME and signature below, rather than the filename suffix.
+        if mime not in expected.values() or (parsed.hostname not in nhentai.IMAGE_HOSTS and mime != expected.get(extension)):
             raise RelayError('Cover source did not return the expected image format')
         declared = response.getheader('Content-Length')
         if declared is not None and (int(declared) < 0 or int(declared) > MAX_IMAGE_BYTES):
@@ -149,6 +151,7 @@ def fetch_image(url):
             raise RelayError('Cover response was incomplete')
         valid = (mime == 'image/webp' and buffer[:4] == b'RIFF' and buffer[8:12] == b'WEBP') or (mime == 'image/jpeg' and buffer[:3] == b'\xff\xd8\xff') or (mime == 'image/avif' and buffer[4:8] == b'ftyp' and (b'avif' in buffer[8:64] or b'avis' in buffer[8:64]))
         valid = valid or (mime == 'image/png' and buffer[:8] == b'\x89PNG\r\n\x1a\n')
+        valid = valid or (mime == 'image/gif' and buffer[:6] in (b'GIF87a',b'GIF89a'))
         if not valid:
             raise RelayError('Cover response is not a supported image')
         return mime, bytes(buffer)
