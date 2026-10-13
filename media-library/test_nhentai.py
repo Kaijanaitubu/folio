@@ -97,11 +97,14 @@ class ImportTests(unittest.TestCase):
             current=matching.tag_snapshot(c)
             self.assertEqual(matching.apply_tags(c,{'tag':[{'name':'digital'}]},'frequency',current)['tag'][0]['gender'],'neutral')
             self.assertEqual(matching.apply_tags(c,{'tag':[{'name':'digital'}]},'frequency',snapshot)['tag'][0]['gender'],'female')
-    def test_ambiguous_alias_neutral_fallback_saves_literal(self):
+    def test_ambiguous_alias_neutral_fallback_requires_choice(self):
         with db.transaction() as c:
             for name in ('A','B'):db.save_entity(c,{'kind':'tag','name':name,'aliases':['ambiguous']})
             data=matching.apply_tags(c,{'title':'literal','tag':[{'name':'ambiguous'}]},'frequency')
-            result=db.save_work(c,data);self.assertEqual(result['tag'][0]['name'],'ambiguous')
+            import tag_policy
+            conflicts=tag_policy.resolve_tags(c,data)
+            self.assertEqual(len(conflicts[0]['choices']),2)
+            with self.assertRaisesRegex(ValueError,'Ambiguous'): db.resolve(c,'tag',data['tag'][0])
     def test_candidates_require_cross_provider_and_author_compatibility(self):
         a=self.save({'title':'Test work','author':[{'name':'Alice','aliases':['アリス']}],'links':[{'url':'https://hitomi.la/reader/555.html'}]})
         self.save({'title':'Test work','author':['Bob'],'links':[{'url':'https://hitomi.la/reader/556.html'}]})

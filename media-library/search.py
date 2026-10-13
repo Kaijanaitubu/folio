@@ -67,6 +67,7 @@ def compile_query(query, dimensions):
                 'WHERE we.work_id=w.id AND e.owner=w.owner AND e.kind IN (' + ','.join('?' for _ in kinds) + ')' + tail +
                 ' AND (' + compare + ' OR EXISTS(SELECT 1 FROM aliases a WHERE a.entity_id=e.id AND ' + alias + ')))')
     def expression(field, value):
+        if field=='none': field='neutral'
         if field in ('title', 'review'):
             return f'instr(fold(w.{field}), {p(value.casefold())})>0'
         if not field:

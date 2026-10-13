@@ -26,7 +26,7 @@ The existing bounded RAM cache applies: 2 MiB maximum image, 32 MiB LRU budget, 
 - Every bookmark/Favorites job selects neutral or frequency independently.
 - Match NFKC/case/whitespace-normalized original names and aliases across attributes. Frequency counts distinct active work associations, excluding Trash, per same-name tag. Never use nhentai's global tag count.
 - Freeze frequencies and name-to-entity candidates in the job record at creation. That job's own additions never influence its subsequent choices.
-- Unique most-used attribute wins only when there is an unambiguous entity for that attribute. Ties, zero uses, unknown names and ambiguous aliases fall back to neutral. Reuse an unambiguous existing neutral entity; otherwise use/create the literal neutral name rather than silently accepting an ambiguous alias.
+- Unique most-used attribute wins only when there is an unambiguous entity for that attribute. Ties, zero uses, unknown names and ambiguous aliases fall back to neutral. Reuse an unambiguous existing no-attribute entity. Multiple matching no-attribute tags require a persisted tag_review decision; unknown names can create new tags on work save. See [TAG-SPEC.md](TAG-SPEC.md).
 - Changes apply to imported data, without rewriting existing work assignments or the source's original metadata. Missing/deleted entity IDs are revalidated before saving.
 
 ## Cross-site matching (F-014)

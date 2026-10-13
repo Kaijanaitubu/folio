@@ -4,6 +4,7 @@ import json
 import time
 import db
 import importer
+import tag_policy
 import nhentai
 import nhentai_credentials as credentials
 import import_matching as matching
@@ -145,14 +146,39 @@ def process_item(item):
         if current['status']!='running':
             c.execute('UPDATE job_items SET status=? WHERE id=?',('cancelled' if current['status']=='cancelled' else 'pending',item['id'])); return
         if nhentai.location(item['url']): matching.apply_tags(c,data,current['tag_mode'],json.loads(current['tag_snapshot']))
-        options=matching.candidates(c,data,item['url'])
-        if options:
-            policy=current['match_policy']
-            if policy=='new': finish_item(c,item,data,current)
-            elif policy=='attach_unique' and len(options)==1: finish_item(c,item,data,current,'attach',options[0]['id'])
-            else:
-                c.execute("UPDATE job_items SET status='match_review',title=?,payload=?,warnings_json=? WHERE id=?",(title,json.dumps(data,ensure_ascii=False),json.dumps({'candidates':options},ensure_ascii=False),item['id']))
-        else: finish_item(c,item,data,current)
+        review_or_finish(c,item,data,current)
+
+
+def review_or_finish(c,item,data,current):
+    conflicts=tag_policy.resolve_tags(c,data)
+    if conflicts:
+        c.execute("UPDATE job_items SET status='tag_review',title=?,payload=?,warnings_json=? WHERE id=?",
+                  (data['title'],json.dumps(data,ensure_ascii=False),json.dumps({'tags':conflicts},ensure_ascii=False),item['id']))
+        return
+    options=matching.candidates(c,data,item['url'])
+    if options and current['match_policy']!='new' and not (current['match_policy']=='attach_unique' and len(options)==1):
+        c.execute("UPDATE job_items SET status='match_review',title=?,payload=?,warnings_json=? WHERE id=?",
+                  (data['title'],json.dumps(data,ensure_ascii=False),json.dumps({'candidates':options},ensure_ascii=False),item['id']))
+    else:
+        finish_item(c,item,data,current,'attach' if options and current['match_policy']=='attach_unique' else 'new',options[0]['id'] if options else None)
+
+
+def decide_tags(c,jid,data):
+    if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
+    current=job(c,jid)
+    row=c.execute("SELECT * FROM job_items WHERE id=? AND job_id=? AND status='tag_review'",(data.get('item_id'),jid)).fetchone()
+    if not row: raise ValueError('Import review changed; refresh the job')
+    item=dict(row); payload=json.loads(item['payload'])
+    conflicts=tag_policy.resolve_tags(c,payload)
+    # Resolve all current ambiguous names explicitly. Chosen IDs must still be candidates.
+    for conflict in conflicts:
+        choice=data.get('choices',{}).get(str(conflict['index']))
+        if not choice or choice not in {e['id'] for e in conflict['choices']}: raise ValueError('Choose an existing tag for each ambiguous name')
+        payload['tag'][conflict['index']]=next(e for e in conflict['choices'] if e['id']==choice)
+    review_or_finish(c,item,payload,current)
+    settle(c,jid)
+    return {'ok':True}
+
 
 def decide(c,jid,data):
     if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
@@ -183,7 +209,7 @@ def settle(c,jid):
     if current['status'] not in ('running','awaiting_review','complete'): return
     active=c.execute("SELECT 1 FROM job_items WHERE job_id=? AND status IN ('running','pending') LIMIT 1",(jid,)).fetchone()
     if current['enumeration_done'] and not active:
-        review=c.execute("SELECT 1 FROM job_items WHERE job_id=? AND status='match_review' LIMIT 1",(jid,)).fetchone()
+        review=c.execute("SELECT 1 FROM job_items WHERE job_id=? AND status IN ('match_review','tag_review') LIMIT 1",(jid,)).fetchone()
         c.execute('UPDATE jobs SET status=? WHERE id=?',('awaiting_review' if review else 'complete',jid))
 
 def control(c,jid,command,data):

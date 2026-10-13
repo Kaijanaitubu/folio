@@ -18,6 +18,7 @@ import nhentai
 import nhentai_credentials
 import import_jobs
 import import_matching
+import tag_policy
 from search import CATEGORIES
 
 TOKEN=secrets.token_urlsafe(32)
@@ -210,12 +211,15 @@ class Handler(BaseHTTPRequestHandler):
             elif action=='entities':
                 if self.command=='GET':
                     if ident:
-                        row=c.execute('SELECT e.*, (SELECT count(*) FROM work_entities WHERE entity_id=e.id) AS uses FROM entities e WHERE e.id=? AND owner=?',(ident,db.OWNER)).fetchone()
+                        row=c.execute('SELECT e.*, (SELECT count(*) FROM work_entities WHERE entity_id=e.id) AS uses FROM entities e WHERE e.id=? AND owner=?',(tag_policy.entity_id(c,ident),db.OWNER)).fetchone()
                         if not row: raise ValueError('Metadata not found')
                         result=db.entity_data(c,row)
                     else: result=db.entity_list(c,g('kind') or None,g('q'),g('sort','name_asc'),max(0,int(g('offset','0'))),min(300,max(1,int(g('limit','300')))),g('paged')=='1')
-                elif self.command=='POST' and len(parts)>2 and parts[2]=='merge': db.merge(c,ident,data['target']); result={'ok':True}
-                elif self.command in ('POST','PUT'): result={'id':db.save_entity(c,data,ident)}
+                elif self.command=='POST' and len(parts)>2 and parts[2]=='merge-preview': result=tag_policy.merge_preview(c,ident,data['target'])
+                elif self.command=='POST' and len(parts)>2 and parts[2]=='merge': result=tag_policy.merge(c,ident,data['target'],data.get('signature'),data.get('metadata'))
+                elif self.command=='POST' and ident=='attribute': result=[e for e in tag_policy.matches(c,data.get('name',''),data.get('gender','neutral')) if tag_policy.key(e['name'])==tag_policy.key(data.get('name',''))]
+                elif self.command=='POST' and ident=='check': result={'conflicts':tag_policy.check(c,data,data.get('exclude'))}
+                elif self.command in ('POST','PUT'): result={'id':tag_policy.save(c,data,ident)}
                 elif self.command=='DELETE': c.execute('DELETE FROM entities WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
             elif action=='dimensions':
                 if self.command=='POST' and ident and len(parts)==3 and parts[2]=='preview': result=db.dimension_preview(c,ident,data.get('maximum'))
@@ -224,12 +228,13 @@ class Handler(BaseHTTPRequestHandler):
                 elif self.command=='DELETE': c.execute('DELETE FROM dimensions WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
             elif action=='suggestions':
                 text=g('q'); field=g('field')
+                if field=='none': field='neutral'
                 kind=field if field in ('author','circle','tag','series','character') else 'tag' if field in ('female','male','neutral') else None
                 result=[]
                 for e in db.entity_list(c,kind,text)[:25]:
                     if field in ('female','male','neutral') and e['gender']!=field: continue
                     f=e['gender'] if e['kind']=='tag' and e['gender']!='neutral' else e['kind']
-                    result.append({'label':e['display_name'],'field':f,'value':e['name'],'detail':e['kind']+' / '+e['gender'] if e['kind']=='tag' else e['kind']})
+                    result.append({'label':e['display_name'],'field':f,'value':e['name'],'detail':e['kind']+' / '+e['gender'] if e['kind']=='tag' and e['gender']!='neutral' else e['kind']})
                 for d in db.dimensions(c):
                     if text.casefold() in d['name'].casefold() or text.casefold() in 'rating'+str(d['number']): result.append({'label':d['name'],'field':'rating'+str(d['number']),'value':'>=1','detail':f'1–{d["maximum"]}'})
             elif action=='source-check' and self.command=='POST':
@@ -246,8 +251,9 @@ class Handler(BaseHTTPRequestHandler):
                 result['title_matches']=import_matching.title_matches(c,[title,*result.get('source_titles',[])],data.get('exclude','')) if title else []
                 for match in result['title_matches']: match['evidence']=import_matching.candidate_evidence(c,match,result)
                 result['related_matches']=[r for r in db.source_matches(c,data['url'])['matches'] if r['id']!=data.get('exclude','')]
-                result['ambiguities']=[]
+                result['ambiguities']=tag_policy.resolve_tags(c,result)
                 for kind in ('tag','author','circle','series','character'):
+                    if kind=='tag': continue
                     for item in result.get(kind,[]):
                         exact=c.execute('SELECT * FROM entities WHERE owner=? AND kind=? AND gender=? AND name=?',(db.OWNER,kind,item.get('gender','neutral'),item['name'])).fetchone()
                         if exact:
@@ -269,7 +275,8 @@ class Handler(BaseHTTPRequestHandler):
                 if self.command=='GET': result=jobs(c,ident)
                 elif self.command=='POST' and ident:
                     if len(parts)!=3: raise ValueError('Invalid import job action')
-                    if parts[2]=='decide': result=import_jobs.decide(c,ident,data)
+                    if parts[2]=='tags': result=import_jobs.decide_tags(c,ident,data)
+                    elif parts[2]=='decide': result=import_jobs.decide(c,ident,data)
                     else:
                         import_jobs.control(c,ident,parts[2],data); result=jobs(c,ident)
                 elif self.command=='POST': result=import_jobs.create(c,data)
@@ -280,6 +287,7 @@ class Handler(BaseHTTPRequestHandler):
     def run(self):
         try: self.dispatch()
         except cover_relay.RelayError as e: self.send_json({'error':str(e)},502)
+        except tag_policy.Conflict as e: self.send_json({'error':str(e),'tag_conflicts':e.conflicts,'signature':e.signature},409)
         except db.DuplicateSource as e: self.send_json({'error':str(e),'matches':e.matches},409)
         except sqlite3.IntegrityError as e:
             msg='Duplicate title' if 'works.owner, works.title' in str(e) else 'Duplicate metadata name or invalid association'

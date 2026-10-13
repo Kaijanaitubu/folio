@@ -35,6 +35,30 @@ class FeatureHTTPTests(unittest.TestCase):
         preview=self.api('trash/restore-preview','POST',{'ids':[w['id']]})
         self.api('trash/restore','POST',{'ids':[w['id']],'signature':preview['signature']})
         self.assertEqual(self.api('works/'+w['id'])['title'],'B')
+    def test_tag_collision_attribute_merge_redirect_and_undo_http(self):
+        a=self.api('entities','POST',{'kind':'tag','name':'Archive','aliases':['Blue']})['id']
+        b=self.api('entities','POST',{'kind':'tag','name':'Archive','gender':'female'})['id']
+        code,_,raw=self.request('/api/entities','POST',{'kind':'tag','name':'BLUE'})
+        self.assertEqual(code,409);conflict=json.loads(raw)
+        self.assertEqual(conflict['tag_conflicts'][0]['choices'][0]['id'],a)
+        self.assertEqual(self.api('entities/attribute','POST',{'name':'Archive','gender':'female'})[0]['id'],b)
+        preview=self.api('entities/'+a+'/merge-preview','POST',{'target':b})
+        result=self.api('entities/'+a+'/merge','POST',{'target':b,'signature':preview['signature']})
+        self.assertEqual(self.api('entities/'+a)['id'],b)
+        code,_,_=self.request('/api/entities/'+a,'PUT',{'kind':'tag','name':'Stale'})
+        self.assertEqual(code,400)
+        self.api('history/'+result['history_id']+'/undo','POST',{})
+        self.assertEqual(self.api('entities/'+a)['id'],a)
+    def test_import_uses_unique_same_attribute_alias_and_reviews_canonical_shadow(self):
+        a=self.api('entities','POST',{'kind':'tag','name':'Archive','aliases':['Blue']})['id']
+        with patch('importer.import_url',return_value={'title':'Imported','tag':[{'name':'BLUE'}]}):
+            result=self.api('import','POST',{'url':'https://hitomi.la/reader/123.html'})
+        self.assertEqual(result['tag'][0]['id'],a);self.assertFalse(result['ambiguities'])
+        with db.transaction() as c: db.save_entity(c,{'kind':'tag','name':'BLUE'})
+        with patch('importer.import_url',return_value={'title':'Imported','tag':[{'name':'BLUE'}]}):
+            result=self.api('import','POST',{'url':'https://hitomi.la/reader/123.html'})
+        self.assertEqual(len(result['ambiguities'][0]['choices']),2)
+
     def test_new_endpoints_require_mutation_token(self):
         for endpoint in ('batch/preview','saved-searches','trash/restore','history/missing/undo','covers/preview'):
             self.assertEqual(self.request('/api/'+endpoint,'POST',{},token=False)[0],403)

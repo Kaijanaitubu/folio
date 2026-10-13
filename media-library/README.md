@@ -210,3 +210,7 @@ Keys default to server RAM only. Optional **Remember on this PC** uses the curre
 Cross-site candidates require confirmation. **Add secondary link** changes only the URL list; it preserves primary source, cover, metadata and personal ratings. **Apply to all** handles each single-candidate item and later matches in the same job, leaving multiple candidates for manual review. Alternatively apply separate-work registration to all.
 
 Supports `/g/ID/` and `/g/ID/PAGE/`, Japanese titles first, and the linked page's thumbnail as cover. Images use the bounded RAM relay with no file persistence. Registered URLs open their existing entries from sharing/bookmarklets or skip batch imports. Removing a remote Favorite never deletes a Folio work. See [NHENTAI-SPEC.md](NHENTAI-SPEC.md) for exact rules, limits and key handling. Actual-account Favorites needs verification with the user's key.
+
+## Tag editing
+
+Click a tag chip in the work editor to change its attribute on that work. **Edit shared tag** opens names, aliases and shared settings. Same-name tags with different attributes can merge with a preview and 30-day History undo. Name/alias collisions offer existing-tag reuse or a merge; ambiguous batch items wait for **Choose tags**. No-attribute selectors show **None**, with no suffix on ordinary labels. See [TAG-SPEC.md](TAG-SPEC.md). Run `python -m unittest discover -q` and `node test_tag_flow.mjs` for verification.

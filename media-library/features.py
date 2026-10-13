@@ -3,6 +3,7 @@ import datetime as dt
 import hashlib
 import json
 import db
+import tag_policy
 from search import compile_query
 
 KINDS = ('author', 'circle', 'tag', 'series', 'character')
@@ -77,6 +78,7 @@ def restore_preview(c,ids):
             snapshot=json.loads(row[0])
             for table,key in [('entities','entities'),('dimensions','dimensions')]:
                 for ident,name in snapshot[key].items():
+                    if table=='entities': ident=tag_policy.entity_id(c,ident)
                     if not c.execute('SELECT 1 FROM '+table+' WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone(): names.append(name)
         if names: missing.append({'id':wid,'title':w['title'],'names':names})
         states.append([wid,state(c,wid),names])
@@ -109,9 +111,10 @@ def history(c):
     rows=[]
     for r in c.execute('SELECT id,kind,created,undone,payload FROM operation_history WHERE owner=? ORDER BY created DESC',(db.OWNER,)):
         item=dict(r); payload=json.loads(item.pop('payload'))
-        item['count']=len(payload.get('works',payload.get('before',{}).get('scores',{})))
+        item['count']=payload['before']['count'] if item['kind']=='metadata_merge' else len(payload.get('works',payload.get('before',{}).get('scores',{})))
         item['titles']=payload.get('titles',[])[:5]; item['dimension']=payload.get('dimension')
-        item['fields']=sorted({k for delta in payload.get('works',{}).values() for k in delta})
+        if item['kind']=='metadata_merge': item['merge']={'source':payload['before']['source'],'target':payload['before']['target']}
+        item['fields']=[payload['before']['source']['kind']] if item['kind']=='metadata_merge' else sorted({k for delta in payload.get('works',{}).values() for k in delta})
         if item['dimension']:
             d=c.execute('SELECT name,number FROM dimensions WHERE id=?',(item['dimension'],)).fetchone()
             item['scale']={'name':d['name'] if d else '', 'number':d['number'] if d else None,'before':payload['before']['maximum'],'after':payload['after']['maximum']}
@@ -123,6 +126,10 @@ def undo(c,ident,apply=False):
     r=c.execute('SELECT * FROM operation_history WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone()
     if not r or r['undone']: raise ValueError('Operation is unavailable or already undone')
     p=json.loads(r['payload'])
+    if r['kind']=='metadata_merge':
+        result=tag_policy.undo_merge(c,p,apply)
+        if apply: c.execute('UPDATE operation_history SET undone=? WHERE id=?',(db.now(),ident))
+        return result
     if r['kind']=='rating_scale':
         if scale_state(c,p['dimension'])!=p['after']: raise ValueError('Ratings changed after this operation; undo was cancelled')
         if apply:
@@ -134,11 +141,14 @@ def undo(c,ident,apply=False):
         for wid,delta in p['works'].items():
             current=state(c,wid)
             if current['deleted_at']: raise ValueError('Restore affected entries from Trash before undoing')
-            if any(current[k]!=v['after'] for k,v in delta.items()): raise ValueError('Affected fields changed after this operation; undo was cancelled')
+            def canonical(k,value):
+                return sorted({tag_policy.entity_id(c,eid) for eid in value}) if k in KINDS else value
+            if any(current[k]!=canonical(k,v['after']) for k,v in delta.items()): raise ValueError('Affected fields changed after this operation; undo was cancelled')
             w=db.get_work(c,wid)
             for k,v in delta.items():
                 value=v['before']
                 if k in KINDS:
+                    value=canonical(k,value)
                     for eid in value:
                         if not c.execute('SELECT 1 FROM entities WHERE id=? AND owner=?',(eid,db.OWNER)).fetchone(): raise ValueError('Required metadata was deleted; undo is unavailable')
                     value=[{'id':eid} for eid in value]

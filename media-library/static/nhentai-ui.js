@@ -1,5 +1,5 @@
 // UI shares the existing shell, request guards and escaped text helpers.
-export function createNhentaiUI({$, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty}){
+export function createNhentaiUI({reviewTags, $, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty}){
  const modes=(id,label)=>`<label><span>${esc(t(label))}</span><select id="${id}"><option value="neutral">${esc(t('nhentaiNeutral'))}</option><option value="frequency">${esc(t('nhentaiFrequency'))}</option></select></label>`;
  const safe=fn=>async()=>{try{await fn()}catch(e){toast(e.message)}};
  async function mount(container){
@@ -43,14 +43,18 @@ export function createNhentaiUI({$, $$, api, t, esc, btn, modal, closeModal, dia
   });
  }
  async function jobPage(id){
-  shell('imports',heading(t('jobResults'),t('jobHint'),`<a class="btn" href="#/imports">${esc(t('imports'))}</a>`)+`<div id="job-summary"></div><div class="row wrap"><label><span>${esc(t('jobFilter'))}</span><select id="job-filter"><option value="all">${esc(t('jobAllItems'))}</option><option value="warnings">${esc(t('importWarnings'))}</option>${['match_review','failed','needs_review','added','linked','duplicate_url','pending','cancelled'].map(s=>`<option value="${s}">${esc(t(s))}</option>`).join('')}</select></label></div><div id="job-items" class="bookmark-list"></div><div id="job-more"></div>`);
+  shell('imports',heading(t('jobResults'),t('jobHint'),`<a class="btn" href="#/imports">${esc(t('imports'))}</a>`)+`<div id="job-summary"></div><div class="row wrap"><label><span>${esc(t('jobFilter'))}</span><select id="job-filter"><option value="all">${esc(t('jobAllItems'))}</option><option value="warnings">${esc(t('importWarnings'))}</option>${['match_review','tag_review','failed','needs_review','added','linked','duplicate_url','pending','cancelled'].map(s=>`<option value="${s}">${esc(t(s))}</option>`).join('')}</select></label></div><div id="job-items" class="bookmark-list"></div><div id="job-more"></div>`);
   const root=$('#job-summary');let latest,limit=100,timer,loading=false;
   const paintItems=()=>{
-   const filter=$('#job-filter').value,items=latest.items.filter(i=>filter==='all'||filter==='warnings'&&(i.warnings?.titles?.length||i.warnings?.related?.length)||i.status===filter),shown=items.slice(0,limit);
-   $('#job-items').innerHTML=shown.map(i=>`<div class="bookmark-row"><div class="info">${i.work_id?`<a href="#/work/${esc(i.work_id)}">${esc(i.title)}</a>`:esc(i.title||i.label||i.url)}<small>${esc(i.url)}${i.message?'<br>'+esc(i.message):''}</small>${i.status==='match_review'?btn(t('matchReview'),'review-'+i.id):''}${i.warnings?.titles?.length||i.warnings?.related?.length?`<details><summary>${esc(t('importWarnings'))}</summary>${summaryCards([...(i.warnings.titles||[]),...(i.warnings.related||[])])}</details>`:''}</div><span class="status ${i.status}">${esc(t(i.status))}</span></div>`).join('');
+   const filter=$('#job-filter').value,items=latest.items.filter(i=>filter==='all'||filter==='warnings'&&(i.warnings?.titles?.length||i.warnings?.related?.length||i.status==='tag_review')||i.status===filter),shown=items.slice(0,limit);
+   $('#job-items').innerHTML=shown.map(i=>`<div class="bookmark-row"><div class="info">${i.work_id?`<a href="#/work/${esc(i.work_id)}">${esc(i.title)}</a>`:esc(i.title||i.label||i.url)}<small>${esc(i.url)}${i.message?'<br>'+esc(i.message):''}</small>${i.status==='match_review'?btn(t('matchReview'),'review-'+i.id):i.status==='tag_review'?btn(t('tagReview'),'review-tags-'+i.id):''}${i.warnings?.titles?.length||i.warnings?.related?.length?`<details><summary>${esc(t('importWarnings'))}</summary>${summaryCards([...(i.warnings.titles||[]),...(i.warnings.related||[])])}</details>`:''}</div><span class="status ${i.status}">${esc(t(i.status))}</span></div>`).join('');
    shown.filter(i=>i.status==='match_review').forEach(i=>$('#review-'+i.id).onclick=safe(async()=>{
     const incoming=i.review_data||{title:i.title};const decision=await chooseMatch(incoming,i.warnings.candidates||[],true);if(!decision||!root.isConnected)return;
     const result=await api('jobs/'+id+'/decide','POST',{item_id:i.id,...decision});markLibraryDirty();toast(t('matchResolved')+': '+result.resolved);await poll();
+   }));
+   shown.filter(i=>i.status==='tag_review').forEach(i=>$('#review-tags-'+i.id).onclick=safe(async()=>{
+    const choices=await reviewTags(i.warnings.tags||[]);if(!choices||!root.isConnected)return;
+    await api('jobs/'+id+'/tags','POST',{item_id:i.id,choices});markLibraryDirty();await poll();
    }));
    $('#job-more').innerHTML=items.length>limit?btn(t('jobMore')+` (${Math.min(limit,items.length)}/${items.length})`,'job-more-button'):'';
    $('#job-more-button')?.addEventListener('click',()=>{limit+=100;paintItems()});
@@ -58,7 +62,7 @@ export function createNhentaiUI({$, $$, api, t, esc, btn, modal, closeModal, dia
   const poll=async()=>{
    clearTimeout(timer);if(loading||!root.isConnected)return;loading=true;
    try{
-    latest=await api('jobs/'+id);if(!root.isConnected)return;const j=latest,total=j.items.length,warned=j.items.filter(i=>i.warnings?.titles?.length||i.warnings?.related?.length).length,done=j.items.filter(i=>!['pending','running','match_review'].includes(i.status)).length;
+    latest=await api('jobs/'+id);if(!root.isConnected)return;const j=latest,total=j.items.length,warned=j.items.filter(i=>i.warnings?.titles?.length||i.warnings?.related?.length||i.status==='tag_review').length,done=j.items.filter(i=>!['pending','running','match_review','tag_review'].includes(i.status)).length;
     root.innerHTML=`<section class="panel stack"><div class="row between wrap"><h3>${esc(t(j.status))} · ${done}/${total}</h3><div class="row wrap">${j.status==='running'?btn(t('pauseJob'),'pause-job')+btn(t('cancelJob'),'cancel-job'):['paused','awaiting_key','cancelled'].includes(j.status)?btn(t('resumeJob'),'resume-job'):''}${btn(t('retryFailed'),'retry-job')}</div></div>${!j.enumeration_done?`<p>${esc(t('nhentaiEnumeration'))}: ${Math.max(0,j.enumeration_page-1)} / ${j.enumeration_pages??'—'}</p><small>${esc(t('nhentaiEnumerationHint'))}</small>`:''}${j.message?`<p class="notice">${esc(j.message)} ${j.status==='awaiting_key'?`<a href="#/imports">${esc(t('nhentaiConnect'))}</a>`:''}</p>`:''}<div class="progress"><div></div></div>${warned?`<p class="notice">${esc(t('importWarnings'))}: ${warned}</p>`:''}<div class="row wrap">${Object.entries(j.counts).map(([s,n])=>`<span class="status ${s}">${esc(t(s))}: ${n}</span>`).join('')}</div><label><span>${esc(t('matchPolicy'))}</span><select id="job-match-policy"><option value="ask">${esc(t('matchAsk'))}</option><option value="attach_unique">${esc(t('matchUnique'))}</option><option value="new">${esc(t('matchSeparate'))}</option></select><small>${esc(t('matchAllHint'))}</small></label></section>`;
     $('.progress>div',root).style.width=(total?done/total*100:0)+'%';$('#job-match-policy').value=j.match_policy;
     $('#job-match-policy').onchange=safe(async()=>{await api('jobs/'+id+'/policy','POST',{policy:$('#job-match-policy').value})});

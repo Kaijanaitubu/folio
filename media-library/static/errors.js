@@ -1,4 +1,11 @@
 const messages={
+ 'Metadata changed; reload before editing':'メタデータが変更されました。再読み込みしてから編集してください',
+ 'Tag name or alias already belongs to another tag':'この名前・別名は別のタグに登録されています',
+ 'Metadata changed; preview the merge again':'メタデータが変更されました。統合内容を再確認してください',
+ 'Merged metadata or associations changed; undo was cancelled':'統合後にタグや関連作品が変更されたため取り消せません',
+ 'Choose an existing tag for each ambiguous name':'重複する名前ごとに既存タグを選択してください',
+ 'Import review changed; refresh the job':'取込状況が変更されました。再読み込みしてください',
+ 'Choose different metadata of the same type':'同じ種類の別のメタデータを選択してください',
  'Restore this entry from Trash before editing':'編集する前にゴミ箱から作品を復元してください',
  'Entry not found; check Trash':'作品が見つかりません。ゴミ箱も確認してください',
  'Entry changed on another device; reload before saving':'別の画面で作品が変更されました。再読み込みしてから保存してください',

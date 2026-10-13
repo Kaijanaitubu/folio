@@ -102,7 +102,7 @@ Each tag has a stable ID, owner ID, canonical name, aliases, and gender:
 
 - `female`
 - `male`
-- `neutral` — includes unqualified, unspecified, and genderless tags as one concept.
+- `neutral` — compatible internal value for no attribute. Selectors show None / 未指定（none）; normal labels omit this attribute. Input `none` is accepted.
 
 Tag identity is the pair **canonical name + gender** within the owner’s library. The same name can exist separately for each gender. For entity uniqueness, trim outer whitespace and compare remaining canonical names exactly. Aliases are alternate lookup names, not separate tags.
 
@@ -116,32 +116,34 @@ Each has a stable ID, owner ID, canonical name, and zero or more aliases. They a
 
 Provide a clearly accessible **Manage metadata** area containing Tags, Authors, Circles, Series, and Characters. Each directory supports:
 
-- Search by canonical name or alias. No gender-filter selector in this release; tag gender remains visible on each row.
+- Search by canonical name or alias. No gender-filter selector in this release; only female/male attributes have visible badges.
 - Create and edit, including aliases, preferred display name, optional sort reading, and tag gender.
-- Tap/click the item's displayed name to open library search using its canonical name, quoted/escaped as necessary. Tags use the specific `female:`, `male:`, or `neutral:` field; other types use `author:`, `circle:`, `series:`, or `character:`. Selecting a neutral tag must not broaden the search to other genders. URL state holds the search query.
+- Tap/click the item's displayed name to open library search using its canonical name, quoted/escaped as necessary. Tags use the specific `female:`, `male:`, or `none:` field (`neutral:` remains compatible); other types use `author:`, `circle:`, `series:`, or `character:`. Selecting a neutral tag must not broaden the search to other genders. URL state holds the search query.
 - Sort with a selector next to the metadata search field: name ascending/descending (A–Z / kana gojuon), work usage descending/ascending, and creation newest/oldest. Sort the entire matching dataset before pagination; provide Load more without the previous 300-item directory ceiling.
 - View how many entries use an item.
 - Merge duplicates into a selected survivor.
 - Delete with confirmation showing the number of affected entries.
 
-Entry forms support searching/selecting existing items, creating an item, and opening its metadata editor without discarding the entry draft. Use removable chips or equivalent touch-friendly controls for multi-value fields.
+Entry forms support searching/selecting existing items, creating an item, and opening its metadata editor without discarding the entry draft. A tag chip opens work-scoped attribute replacement; an explicit Edit shared tag button opens the global editor. New attribute variants are created on work Save, not on local Apply. Use removable chips or equivalent touch-friendly controls for multi-value fields.
 
 Each work-editor metadata field (authors, circles, tags, series, characters) provides a localized Remove all action, disabled when empty. Confirm which field will be cleared, then remove its associations only from the current draft. Save commits the change; canceling the confirmation or discarding the draft preserves saved associations. Shared dictionary records and other works remain unchanged.
 
 Editing shared metadata updates all entries referencing it. Display this fact in the metadata editor. Removing a chip affects only the current entry. Deleting an entity removes its associations but never deletes works.
 
-Merging is explicit and atomic: reassign associations to the survivor, deduplicate associations, preserve useful alternate names as aliases, and remove the absorbed entity. Tag merges are restricted to the same gender; change gender deliberately first if needed. Canceling or failing a merge must not leave partial changes.
+Merging is explicit and atomic: reassign associations to the survivor, deduplicate associations, preserve useful alternate names as aliases, and remove the absorbed entity. Tag merges allow different attributes, including equal canonical names. Preserve target display/attribute settings, preview the shared effect, retain old-ID redirects, and record a guarded 30-day undo operation. Canceling or failing a merge must not leave partial changes.
 
 ### 5.4 Alias resolution
 
-- Exact canonical-name matches within the requested entity type/gender take priority.
-- Otherwise resolve an exact alias if it identifies a single eligible entity.
+- Tags match normalized canonical names and aliases together within the requested attribute. NFKC, case folding and collapsed whitespace apply to lookup, while stored spelling stays intact. A canonical match does not suppress another alias candidate. Other metadata types retain canonical-match precedence.
+- Reuse a unique eligible candidate. Manual tag creation/rename/alias addition warns about newly introduced collisions and offers existing-tag selection or explicit shared merge, as applicable.
 - Ambiguous aliases must prompt the user to select an entity in interactive forms. Never silently merge entities.
-- Batch imports with unresolved ambiguity report the item as needing review and skip it; other items continue.
+- Batch imports with ambiguous tag candidates persist fetched metadata as tag_review; other items continue. The import-results page lets users choose existing tags and complete the pending item without fetching again.
 - Search may match all entities sharing an alias because searching does not modify data.
 - Do not infer synonyms or translate names automatically.
 
 Series and characters have the same reusable identity, alias, editing, navigation, and directory capabilities as authors and circles.
+
+The detailed implemented tag contract, including merge undo and job/Trash compatibility, is [TAG-SPEC.md](media-library/TAG-SPEC.md).
 
 ### 5.5 Preferred display names, sorting, and migration
 
@@ -319,7 +321,7 @@ Implement a parser producing a structured query representation, not ad hoc repla
 | `tag:` | Exact canonical name or alias, any gender |
 | `female:` | Tag match restricted to female |
 | `male:` | Tag match restricted to male |
-| `neutral:` | Tag match restricted to neutral |
+| `none:` / `neutral:` | Tag match restricted to no attribute |
 | `series:` | Exact value |
 | `character:` | Exact value |
 | `language:` | Exact value |

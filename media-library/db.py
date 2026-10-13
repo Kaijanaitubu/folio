@@ -29,6 +29,8 @@ def connect():
     c.execute('PRAGMA foreign_keys=ON')
     c.create_function('fold',1,lambda s:(s or '').casefold(), deterministic=True)
     c.create_function('metadata_key',1,metadata_key, deterministic=True)
+    import tag_policy
+    c.create_function('entity_key',1,tag_policy.key, deterministic=True)
     c.create_function('shuffle',2,lambda i,seed:hashlib.sha256((str(seed)+i).encode()).hexdigest(), deterministic=True)
     return c
 @contextlib.contextmanager
@@ -76,6 +78,8 @@ def init():
     migrate_imports()
     import features
     with transaction() as c: features.init(c)
+    import tag_policy
+    with transaction() as c: tag_policy.init(c)
     import import_jobs
     with transaction() as c: import_jobs.init(c)
 
@@ -183,6 +187,7 @@ def entity_list(c,kind=None,q='',sort='name_asc',offset=0,limit=300,paged=False)
 def save_entity(c,data,eid=None):
     kind=data.get('kind'); name=str(data.get('name','')).strip(); gender=data.get('gender','neutral') if kind=='tag' else 'neutral'
     if kind not in ('tag','author','circle','series','character') or not name: raise ValueError('Metadata needs a name and valid type')
+    if gender == 'none': gender = 'neutral'
     if gender not in ('male','female','neutral'): raise ValueError('Invalid tag gender')
     eid=eid or uid()
     old=c.execute('SELECT * FROM entities WHERE id=? AND owner=?',(eid,OWNER)).fetchone()
@@ -201,13 +206,21 @@ def save_entity(c,data,eid=None):
 
 def resolve(c,kind,item):
     if isinstance(item,str): item={'name':item}
+    import tag_policy
     if item.get('id'):
+        item = dict(item, id=tag_policy.entity_id(c,item['id']))
         row=c.execute('SELECT * FROM entities WHERE id=? AND owner=? AND kind=?',(item['id'],OWNER,kind)).fetchone()
         if not row: raise ValueError('Unknown metadata item')
         return row['id']
     name=str(item.get('name','')).strip()
     if not name or name.casefold()=='n/a': return None
     gender=item.get('gender','neutral') if kind=='tag' else 'neutral'
+    if gender == 'none': gender = 'neutral'
+    if kind=='tag' and not item.get('literal_name'):
+        choices=tag_policy.matches(c,name,gender)
+        if len(choices)>1: raise ValueError('Ambiguous alias: '+name)
+        if choices: return choices[0]['id']
+        return save_entity(c,dict(item,kind=kind,gender=gender))
     row=c.execute('SELECT id FROM entities WHERE owner=? AND kind=? AND name=? AND gender=?',(OWNER,kind,name,gender)).fetchone()
     if row: return row[0]
     rows=[] if item.get('literal_name') else c.execute('SELECT DISTINCT e.id FROM entities e JOIN aliases a ON a.entity_id=e.id WHERE e.owner=? AND e.kind=? AND e.gender=? AND a.name=?',(OWNER,kind,gender,name)).fetchall()
@@ -356,13 +369,8 @@ def save_dimension(c,data,did=None):
     return did
 
 def merge(c,source,target):
-    a=c.execute('SELECT * FROM entities WHERE id=? AND owner=?',(source,OWNER)).fetchone()
-    b=c.execute('SELECT * FROM entities WHERE id=? AND owner=?',(target,OWNER)).fetchone()
-    if not a or not b or source==target or (a['kind'],a['gender'])!=(b['kind'],b['gender']): raise ValueError('Choose different metadata of the same type and gender')
-    c.execute('INSERT OR IGNORE INTO work_entities SELECT work_id,? FROM work_entities WHERE entity_id=?',(target,source))
-    c.execute('INSERT OR IGNORE INTO aliases SELECT ?,name FROM aliases WHERE entity_id=?',(target,source))
-    c.execute('INSERT OR IGNORE INTO aliases VALUES(?,?)',(target,a['name']))
-    c.execute('DELETE FROM entities WHERE id=?',(source,))
+    import tag_policy
+    return tag_policy.merge(c,source,target)
 
 def backup(destination=None):
     dest=Path(destination or os.environ.get('MEDIA_BACKUPS',str(ROOT/'backups'))); dest.mkdir(parents=True,exist_ok=True)

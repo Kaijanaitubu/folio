@@ -75,12 +75,12 @@ def apply_tags(c,data,mode='neutral',snapshot=None):
             neutral=[r for r in choices if r['gender']=='neutral']
             if len(neutral)==1: selected=neutral[0]
         if selected:
-            row=c.execute("SELECT * FROM entities WHERE id=? AND owner=? AND kind='tag'",(selected['id'],db.OWNER)).fetchone()
+            import tag_policy
+            resolved=tag_policy.entity_id(c,selected['id'])
+            row=c.execute("SELECT * FROM entities WHERE id=? AND owner=? AND kind='tag'",(resolved,db.OWNER)).fetchone()
             if row: result.append(db.entity_data(c,row)); continue
-        # Ambiguous neutral aliases must create/use the literal neutral name,
-        # rather than silently resolve an unrelated alias while saving.
-        row=c.execute("SELECT * FROM entities WHERE owner=? AND kind='tag' AND name=? AND gender='neutral'",(db.OWNER,item['name'])).fetchone()
-        result.append(db.entity_data(c,row) if row else dict(item,gender='neutral',literal_name=True))
+        # Preserve the default no-attribute policy, but do not hide ambiguous aliases.
+        result.append(dict(item,gender='neutral'))
     data['tag']=result
     return data
 
