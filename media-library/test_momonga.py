@@ -45,6 +45,8 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaises(ValueError):momonga.parse_page('<h1>Challenge</h1>',URL)
         self.assertTrue(momonga.parse_page(HTML.replace('/123/1.webp','/999/1.webp'),URL)['warnings'])
     def test_image_boundaries_and_memory_cache(self):
+        data=momonga.parse_page(HTML.replace('z2.momon-ga.me','z3.momon-ga.me'),URL)
+        self.assertEqual(data['cover'],'https://z3.momon-ga.me/galleries/123/1.webp')
         value='https://z2.momon-ga.me/galleries/123/1.webp'
         for bad in (value+'?x=1',value+'#x',value.replace('z2.','evil.'),value.replace('/1.webp','/../evil'),value.replace('https:','http:')):
             self.assertFalse(momonga.valid_image(bad))
@@ -52,6 +54,8 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(cover_sources.load(value),('image/webp',b'fixture')); cover_sources.load(value);fetch.assert_called_once()
         with patch('momonga.response',return_value=('image/webp',b'<html>')):
             with self.assertRaises(ValueError):momonga.fetch_image(value)
+        with patch.object(cover_relay,'CACHE',cover_relay.MemoryCache()),patch('momonga.fetch_image',return_value=('image/webp',b'fixture')) as fetch:
+            cover_sources.load(data['cover']);fetch.assert_called_once_with(data['cover'])
     def test_network_rejects_private_address_and_status(self):
         with patch('momonga.socket.getaddrinfo',return_value=[(2,1,6,'',('127.0.0.1',443))]),patch('momonga.socket.socket') as sock:
             with self.assertRaises(ValueError):momonga.response(URL,100)

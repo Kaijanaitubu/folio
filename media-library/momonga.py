@@ -11,7 +11,7 @@ from html.parser import HTMLParser
 from urllib.parse import urlsplit, urljoin
 
 HOST = 'momon-ga.com'
-IMAGE_HOSTS = {'z2.momon-ga.me'}
+IMAGE_HOSTS = {'z2.momon-ga.me', 'z3.momon-ga.me'}
 MAX_HTML = 4 * 1024 * 1024
 CANCEL = contextvars.ContextVar('momonga_cancel', default=lambda: False)
 _lock = threading.Lock()

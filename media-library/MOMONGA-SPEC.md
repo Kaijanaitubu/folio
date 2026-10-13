@@ -29,7 +29,7 @@ nhentai Favorites固有のAPIキー・一覧取得の動作は変更しない。
 ## 表紙と画像中継
 
 表紙は本文post-hentai内の最初のimg。対応ホスト・当該mo番号・1ページ目のパスを検証する。
-現在の対応画像ホストは調査済みのz2.momon-ga.me、パスはgalleries/数字/ページ番号、WebP/JPEG/PNG。
+現在の対応画像ホストは調査済みのz2.momon-ga.meとz3.momon-ga.me、パスはgalleries/数字/ページ番号、WebP/JPEG/PNG。
 画像URLはHTMLにある実URLを使用する。取得できなければ警告し、メタデータ取込は継続する。
 DBにはURLのみ保存し、プレビュー・詳細・ギャラリーは既存の上限・TTL付きRAMキャッシュを共有する。
 画像本体は2MB上限、MIMEと先頭バイトを検証。ディスク・バックアップへ保存しない。
