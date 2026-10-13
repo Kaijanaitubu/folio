@@ -232,15 +232,28 @@ class Handler(BaseHTTPRequestHandler):
                 elif self.command=='DELETE': c.execute('DELETE FROM dimensions WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
             elif action=='suggestions':
                 text=g('q'); field=g('field')
+                mark_field=field=='mark' or field in {f'mark{n}' for n in range(1,6)}
+                mark_items=[]
+                if mark_field or not field:
+                    for d in marks.definitions(c):
+                        number=str(d['number']); token='mark'+number
+                        if field not in ('','mark',token): continue
+                        if mark_field and field!='mark':
+                            for value in ('yes','no'):
+                                if text.casefold() in value:
+                                    mark_items.append({'label':value,'field':token,'value':value,'detail':number+'. '+d['off']+' '+d['label']})
+                        elif not text or any(text.casefold() in value.casefold() for value in (number,token,d['label'])):
+                            mark_items.append({'label':number+'. '+d['off']+(' '+d['label'] if d['label'] else ''),'field':'mark','value':number,'detail':token})
                 if field=='none': field='neutral'
                 kind=field if field in ('author','circle','tag','series','character') else 'tag' if field in ('female','male','neutral') else None
                 result=[]
-                for e in db.entity_list(c,kind,text)[:25]:
+                for e in ([] if mark_field else db.entity_list(c,kind,text)[:25]):
                     if field in ('female','male','neutral') and e['gender']!=field: continue
                     f=e['gender'] if e['kind']=='tag' and e['gender']!='neutral' else e['kind']
                     result.append({'label':e['display_name'],'field':f,'value':e['name'],'detail':e['kind']+' / '+e['gender'] if e['kind']=='tag' and e['gender']!='neutral' else e['kind']})
-                for d in db.dimensions(c):
+                for d in ([] if mark_field else db.dimensions(c)):
                     if text.casefold() in d['name'].casefold() or text.casefold() in 'rating'+str(d['number']): result.append({'label':d['name'],'field':'rating'+str(d['number']),'value':'>=1','detail':f'1–{d["maximum"]}'})
+                result=mark_items+result
             elif action=='source-check' and self.command=='POST':
                 if data.get('generic'):
                     value=db.url(data.get('url','')); result={'url':value,'matches':db.exact_sources(c,value)}

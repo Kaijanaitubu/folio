@@ -111,3 +111,6 @@ summary { cursor: pointer; overflow-wrap: anywhere; }
 #nhentai-import .check-label input{flex:0 0 19px}
 #nhentai-import .check-label>span{margin:0}
 #attach-existing{max-width:100%;white-space:normal;text-align:center}
+
+/* Suggestion rows are nested inside the utility bar, not its Add action. */
+:root .utility-bar .utility-search .suggestions button{color:var(--ink)}

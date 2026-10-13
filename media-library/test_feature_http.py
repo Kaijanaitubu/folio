@@ -106,6 +106,25 @@ class FeatureHTTPTests(unittest.TestCase):
         self.api('history/'+history[0]['id']+'/undo','POST',{})
         self.assertEqual(self.api('works/'+w['id'])['marks'],[1,4])
 
+    def test_mark_search_suggestions_are_valid_and_owner_scoped(self):
+        self.api('mark-labels','PUT',{'labels':['Owned','Read','Later','Favorite','Review'],'expected':['']*5})
+        with db.transaction() as c:
+            c.execute("INSERT INTO owners(id) VALUES('other')")
+            c.execute("INSERT INTO mark_labels VALUES('other',1,'Private other label')")
+        choices=self.api('suggestions?q=mark')
+        self.assertEqual([(i['field'],i['value']) for i in choices],[('mark',str(n)) for n in range(1,6)])
+        self.assertIn('Favorite',choices[3]['label'])
+        self.assertNotIn('Private other label',json.dumps(choices))
+        for choice in choices:
+            with db.transaction() as c: db.list_works(c,choice['field']+':'+choice['value'])
+        self.assertEqual(len(self.api('suggestions?field=mark&q=')),5)
+        self.assertEqual(self.api('suggestions?field=mark&q=4')[0]['value'],'4')
+        self.assertEqual(self.api('suggestions?q=Favorite')[0]['value'],'4')
+        self.assertEqual([i['value'] for i in self.api('suggestions?field=mark2&q=')],['yes','no'])
+        self.assertEqual(self.api('suggestions?field=mark2&q=n')[0]['value'],'no')
+        dimension=self.api('dimensions','POST',{'name':'Story','maximum':5,'symbol':'Star'})
+        self.assertTrue(any(i['field']=='rating1' for i in self.api('suggestions?q=rating1')))
+
     def test_batch_trash_is_atomic_and_restore_preserves_data(self):
         a=self.api('works','POST',{'title':'A','marks':[1,4],'review':'Keep','tag':['original'],'links':[{'url':'https://example.org/a'}]})
         b=self.api('works','POST',{'title':'B'})

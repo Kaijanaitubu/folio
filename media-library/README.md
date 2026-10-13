@@ -8,6 +8,8 @@ Future requests, hosting options, and implementation status are tracked in the [
 
 momon-ga work pages are supported in individual imports, bookmark HTML, bookmarklets and shared links. Parodies become series; tags share nhentai's None/most-used-attribute policy. Covers use page 1 and the RAM-only relay. Mylist import is deferred. See [the importer specification (Japanese)](MOMONGA-SPEC.md).
 
+Bookmarklet address/copy settings and the source URL opener are on Imports. Typing `mark` or `mark:` in the search bar suggests the five marks with their numbers, symbols and shared labels; choosing one inserts a valid query such as `mark:4`. `mark2:` also offers `yes` / `no`.
+
 ## Start on this PC
 
 Open PowerShell in this directory and run:

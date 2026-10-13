@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {en,ja} from './static/i18n.js';
 import {featureEn,featureJa} from './static/feature-text.js';
 import {nhentaiEn,nhentaiJa} from './static/nhentai-text.js';
-const intentional=new Set(['imports','importsHint','importHint','sourceTools','sourcePaste','sourceToolsHint','sourceMatchesHint','sourceRelatedHint']);
+const intentional=new Set(['imports','importsHint','importHint','sourceTools','sourcePaste','sourceToolsHint','sourceMatchesHint','sourceRelatedHint','bookmarkHelp']);
 for(const [base,features,addition] of [[en,featureEn,nhentaiEn],[ja,featureJa,nhentaiJa]]){
  const existing={...base,...features};
  for(const key of Object.keys(addition))if(key in existing)assert.ok(intentional.has(key),`Unexpected translation collision: ${key}`);
