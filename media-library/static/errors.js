@@ -1,4 +1,12 @@
 const messages={
+ 'Choose mark numbers 1–5':'マーク番号は1〜5で指定してください',
+ 'Enter five mark labels, up to 80 characters each':'5個のラベルをそれぞれ80文字以内で入力してください',
+ 'Mark labels changed; reload before saving':'マークのラベルが変更されています。再読み込みしてから保存してください',
+ 'Marks changed; reload before saving':'マークが変更されています。再読み込みしてから保存してください',
+ 'Mark expects numbers 1–5, =numbers, none or any':'markには1〜5の番号、=番号、none、anyを指定してください',
+ 'Marks expect yes/no or true/false':'マークにはyes/noまたはtrue/falseを指定してください',
+ 'Choose marks or legacy purchase status, not both':'マークと購入済みを同時に指定できません。マークを指定してください',
+ 'Invalid mark operation':'マークの変更方法を確認してください',
  'Metadata changed; reload before editing':'メタデータが変更されました。再読み込みしてから編集してください',
  'Tag name or alias already belongs to another tag':'この名前・別名は別のタグに登録されています',
  'Metadata changed; preview the merge again':'メタデータが変更されました。統合内容を再確認してください',

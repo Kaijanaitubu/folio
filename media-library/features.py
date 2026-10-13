@@ -7,7 +7,7 @@ import tag_policy
 from search import compile_query
 
 KINDS = ('author', 'circle', 'tag', 'series', 'character')
-FIELDS = ('title', 'cover', 'category', 'language', 'pages', 'review', 'bought', *KINDS, 'links', 'ratings')
+FIELDS = ('title', 'cover', 'category', 'language', 'pages', 'review', 'bought', 'marks', *KINDS, 'links', 'ratings')
 
 def init(c):
     if 'deleted_at' not in {r['name'] for r in c.execute('PRAGMA table_info(works)')}:
@@ -42,7 +42,9 @@ def record(c,kind,payload):
     return ident
 
 def changes(before,after):
-    return {k:{'before':before[k],'after':after[k]} for k in before if before[k]!=after[k]}
+    delta={k:{'before':before[k],'after':after[k]} for k in before if before[k]!=after[k]}
+    if 'marks' in delta: delta.pop('bought',None)
+    return delta
 
 def save_work(c,data,wid=None):
     if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
@@ -153,6 +155,8 @@ def undo(c,ident,apply=False):
                         if not c.execute('SELECT 1 FROM entities WHERE id=? AND owner=?',(eid,db.OWNER)).fetchone(): raise ValueError('Required metadata was deleted; undo is unavailable')
                     value=[{'id':eid} for eid in value]
                 w[k]=value
+                if k=='bought' and 'marks' not in delta:
+                    w['marks']=sorted((set(w['marks'])-{1})|({1} if value else set()))
             # Validates missing dimensions / changed scales before any writes.
             dims={d['id']:d['maximum'] for d in db.dimensions(c)}
             if any(did not in dims or not 1<=v<=dims[did] for did,v in w['ratings'].items()): raise ValueError('Rating scale changed; undo is unavailable')
@@ -211,7 +215,8 @@ def batch_targets(c,data):
     return sorted(set(ids))
 
 def batch_values(c,w,patch):
-    if not isinstance(patch,dict) or set(patch)-set((*KINDS,'ratings','bought','category','language')): raise ValueError('Unsupported batch field')
+    if not isinstance(patch,dict) or set(patch)-set((*KINDS,'ratings','bought','marks','category','language')): raise ValueError('Unsupported batch field')
+    if 'marks' in patch and 'bought' in patch: raise ValueError('Choose marks or legacy purchase status, not both')
     for k,spec in patch.items():
         if k in KINDS:
             mode=spec.get('mode'); values=spec.get('items',[])
@@ -224,6 +229,13 @@ def batch_values(c,w,patch):
             current={e['id'] for e in w[k]}; selected=set(ids)
             result=current|selected if mode=='add' else current-selected if mode=='remove' else selected if mode=='replace' else set()
             w[k]=[{'id':eid} for eid in sorted(result)]
+        elif k=='marks':
+            import marks
+            mode=spec.get('mode'); selected=set(marks.numbers(marks.bits(spec.get('items',[]))))
+            if mode not in ('add','remove','replace','clear'): raise ValueError('Invalid mark operation')
+            current=set(w['marks'])
+            w['marks']=sorted(current|selected if mode=='add' else current-selected if mode=='remove' else selected if mode=='replace' else set())
+            w['bought']=1 in w['marks']
         elif k=='ratings':
             if not isinstance(spec,dict): raise ValueError('Invalid ratings')
             dims={d['id']:d['maximum'] for d in db.dimensions(c)}
@@ -236,6 +248,7 @@ def batch_values(c,w,patch):
             if k=='category' and spec not in ('',*db.CATEGORIES): raise ValueError('Invalid category')
             if k=='language' and (not isinstance(spec,str) or len(spec)>100): raise ValueError('Invalid language')
             w[k]=spec
+            if k=='bought': w['marks']=sorted((set(w['marks'])-{1})|({1} if spec else set()))
     return w
 
 def batch_preview(c,data):
@@ -248,6 +261,7 @@ def batch_preview(c,data):
         before[wid]=snapshot
         after=batch_values(c,w,patch)
         normalized={**snapshot,**{k:after[k] for k in patch}}
+        if 'marks' in patch or 'bought' in patch: normalized.update(marks=after['marks'],bought=after['bought'])
         for k in KINDS:
             if k in patch: normalized[k]=sorted(e['id'] for e in after[k])
         changed+=bool(changes(snapshot,normalized))
@@ -262,10 +276,12 @@ def batch_apply(c,ident):
     if not row or row['created']<cutoff: raise ValueError('Batch preview expired; preview again')
     p=json.loads(row['payload']); deltas={}; titles=[]
     for wid,before in p['before'].items():
+        if 'marks' not in before: before['marks']=[1] if before['bought'] else []
         if state(c,wid)!=before: raise ValueError('Selected entries changed; preview again')
     for wid,before in p['before'].items():
         w=batch_values(c,db.get_work(c,wid),p['patch'])
         normalized={**before,**{k:w[k] for k in p['patch']}}
+        if 'marks' in p['patch'] or 'bought' in p['patch']: normalized.update(marks=w['marks'],bought=w['bought'])
         for k in KINDS:
             if k in p['patch']: normalized[k]=sorted(e['id'] for e in w[k])
         if not changes(before,normalized): continue

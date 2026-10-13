@@ -87,10 +87,18 @@ def compile_query(query, dimensions, owner='local'):
             if field == 'category':
                 value = next((k for k,v in CATEGORIES.items() if v == value), value)
             return f'fold(w.{field})={p(value.casefold())}'
-        if field == 'bought':
+        if field == 'mark':
+            exact=value.startswith('='); digits=value[1:] if exact else value
+            if not exact and digits.casefold() in ('none','any'):
+                return 'w.mark_bits=0' if digits.casefold()=='none' else 'w.mark_bits>0'
+            if not re.fullmatch('[1-5]+',digits): raise ValueError('Mark expects numbers 1–5, =numbers, none or any')
+            mask=sum(1<<(int(n)-1) for n in set(digits))
+            return 'w.mark_bits='+p(mask) if exact else '(w.mark_bits & '+p(mask)+')='+p(mask)
+        if field == 'bought' or re.fullmatch('mark[1-5]',field):
             if value.casefold() not in ('true','false','yes','no'):
-                raise ValueError('Bought expects yes/no or true/false')
-            return 'w.bought=' + p(int(value.casefold() in ('true','yes')))
+                raise ValueError('Bought expects yes/no or true/false' if field=='bought' else 'Marks expect yes/no or true/false')
+            mask=1 if field=='bought' else 1<<(int(field[-1])-1)
+            return '(w.mark_bits & '+p(mask)+')='+p(mask if value.casefold() in ('true','yes') else 0)
         if field == 'pages' or re.fullmatch(r'rating[1-9]\d*', field):
             match = re.fullmatch(r'(>=|<=|>|<|=)?(\d+)', value)
             if not match:

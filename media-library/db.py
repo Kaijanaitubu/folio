@@ -78,6 +78,8 @@ def init():
     migrate_imports()
     import features
     with transaction() as c: features.init(c)
+    import marks
+    with transaction() as c: marks.init(c)
     import tag_policy
     with transaction() as c: tag_policy.init(c)
     import import_jobs
@@ -235,6 +237,8 @@ def get_work(c,wid,opened=False,include_deleted=False):
         c.execute('UPDATE works SET opened=? WHERE id=?',(now(),wid))
         r=c.execute('SELECT * FROM works WHERE id=?',(wid,)).fetchone()
     out=dict(r)
+    import marks
+    out['marks']=marks.numbers(out['mark_bits'])
     for kind in ('author','circle','tag','series','character'):
         out[kind]=[entity_data(c,e) for e in c.execute("SELECT e.* FROM entities e JOIN work_entities we ON we.entity_id=e.id WHERE we.work_id=? AND e.kind=? ORDER BY metadata_key(COALESCE(NULLIF(display_alias,''),name)),e.gender,e.id",(wid,kind))]
     out['links']=[dict(l) for l in c.execute('SELECT * FROM links WHERE work_id=? ORDER BY position',(wid,))]
@@ -263,8 +267,13 @@ def save_work(c,data,wid=None):
     if data.get('category','') not in ('',*CATEGORIES): raise ValueError('Invalid category')
     pages=data.get('pages')
     if pages is not None and (type(pages)!=int or pages<0): raise ValueError('Pages must be a nonnegative integer')
+    import marks
+    previous=c.execute('SELECT mark_bits FROM works WHERE id=?',(wid,)).fetchone()
+    previous=previous[0] if previous else 0
+    selected_marks=marks.bits(data['marks']) if 'marks' in data else (previous & 30) | int(bool(data.get('bought'))) if 'bought' in data else previous
     c.execute('INSERT INTO works(id,owner,title,cover,category,language,pages,review,bought,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,cover=excluded.cover,category=excluded.category,language=excluded.language,pages=excluded.pages,review=excluded.review,bought=excluded.bought,updated=excluded.updated',
-        (wid,OWNER,title,url(data.get('cover')),data.get('category',''),str(data.get('language','')),pages,str(data.get('review','')),int(bool(data.get('bought'))),stamp,stamp))
+        (wid,OWNER,title,url(data.get('cover')),data.get('category',''),str(data.get('language','')),pages,str(data.get('review','')),selected_marks & 1,stamp,stamp))
+    c.execute('UPDATE works SET mark_bits=? WHERE id=?',(selected_marks,wid))
     c.execute('DELETE FROM work_entities WHERE work_id=?',(wid,))
     for kind in ('author','circle','tag','series','character'):
         for item in data.get(kind,[]):

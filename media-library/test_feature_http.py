@@ -86,4 +86,24 @@ class FeatureHTTPTests(unittest.TestCase):
         result=self.api('source-check','POST',{'url':'https://example.com/art','generic':True})
         self.assertEqual(result['matches'][0]['id'],w['id'])
 
+    def test_marks_config_quick_save_and_undo_contract(self):
+        config=self.api('config');self.assertEqual(len(config['marks']),5)
+        self.assertEqual(self.request('/api/mark-labels','PUT',{},token=False)[0],403)
+        labels=['Owned','Read','Later','Favorite','Review']
+        saved=self.api('mark-labels','PUT',{'labels':labels,'expected':['']*5})
+        self.assertEqual([m['label'] for m in saved['marks']],labels)
+        self.assertEqual(self.request('/api/mark-labels','PUT',{'labels':labels,'expected':['']*5})[0],400)
+        w=self.api('works','POST',{'title':'Marks','review':'Keep','marks':[1,4]})
+        endpoint='works/'+w['id']+'/marks'
+        self.assertEqual(self.request('/api/'+endpoint,'POST',{},token=False)[0],403)
+        result=self.api(endpoint,'POST',{'number':2,'value':True,'expected':[1,4]})
+        self.assertEqual(result['marks'],[1,2,4]);self.assertEqual(result['review'],'Keep')
+        self.assertEqual(self.api('works?q=mark%3A%3D124')['total'],1)
+        history=self.api('history');self.assertEqual(history[0]['fields'],['marks'])
+        self.api(endpoint,'POST',{'number':2,'value':True,'expected':[]})
+        self.assertEqual(len(self.api('history')),len(history))
+        self.assertEqual(self.request('/api/'+endpoint,'POST',{'number':3,'value':True,'expected':[]})[0],400)
+        self.api('history/'+history[0]['id']+'/undo','POST',{})
+        self.assertEqual(self.api('works/'+w['id'])['marks'],[1,4])
+
 if __name__=='__main__':unittest.main()

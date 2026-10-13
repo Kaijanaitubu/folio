@@ -19,6 +19,7 @@ import nhentai_credentials
 import import_jobs
 import import_matching
 import tag_policy
+import marks
 from search import CATEGORIES
 
 TOKEN=secrets.token_urlsafe(32)
@@ -171,12 +172,14 @@ class Handler(BaseHTTPRequestHandler):
                 if matches: raise db.DuplicateSource(matches)
             incoming=importer.import_url(data['url'])
         with db.transaction() as c:
-            if action=='config': result={'token':TOKEN,'dimensions':db.dimensions(c),'symbols':db.SYMBOLS,'categories':CATEGORIES}
+            if action=='config': result={'token':TOKEN,'dimensions':db.dimensions(c),'symbols':db.SYMBOLS,'categories':CATEGORIES,'marks':marks.definitions(c)}
+            elif action=='mark-labels' and self.command=='PUT': result={'marks':marks.save_labels(c,data)}
             elif action=='works':
                 if self.command=='GET':
                     if ident: result=db.get_work(c,ident)
                     elif g('ids')=='1': result={'ids':features.batch_targets(c,{'all':True,'query':g('q')})}
                     else: result=db.list_works(c,g('q'),g('sort','newest'),max(0,int(g('offset','0'))),min(100,max(1,int(g('limit','40')))),g('seed','0'),g('random')=='1')
+                elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='marks': result=marks.toggle(c,ident,data)
                 elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='open': result=db.get_work(c,ident,True)
                 elif self.command in ('POST','PUT'):
                     if ident and not c.execute('SELECT 1 FROM works WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone(): raise ValueError('Entry not found')

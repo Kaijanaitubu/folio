@@ -214,3 +214,11 @@ Supports `/g/ID/` and `/g/ID/PAGE/`, Japanese titles first, and the linked page'
 ## Tag editing
 
 Click a tag chip in the work editor to change its attribute on that work. **Edit shared tag** opens names, aliases and shared settings. Same-name tags with different attributes can merge with a preview and 30-day History undo. Name/alias collisions offer existing-tag reuse or a merge; ambiguous batch items wait for **Choose tags**. No-attribute selectors show **None**, with no suffix on ordinary labels. See [TAG-SPEC.md](TAG-SPEC.md). Run `python -m unittest discover -q` and `node test_tag_flow.mjs` for verification.
+
+## Five marks and Search help
+
+Purchased is now the first of five independent marks: ○ △ □ ♡ ☆. Set shared labels in **Settings → Mark labels**. Open the small mark summary beside a work title to toggle immediately, or use the edit form and Save. Active marks appear at the bottom right of library cards. Existing Purchased records carry over to ○; the existing `bought:yes/no` search stays valid.
+
+Search `mark:124` for marks 1, 2 and 4 all on, `mark:=124` for exactly those marks, `mark:1/mark:4` for either, `-mark:2` for 2 off, and `mark:none` / `mark:any` for none / any. Mark numbers remain fixed when labels change. Batch editing supports adding, removing, replacing and clearing marks, with preview and guarded History undo.
+
+Click **Search help** beside the Library's operator hints for the complete English/Japanese guide, including your current rating dimensions and mark labels. The dialog preserves the current search and sort. [Detailed behavior and API contract](MARKS-AND-SEARCH-SPEC.md).
