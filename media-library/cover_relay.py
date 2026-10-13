@@ -1,7 +1,8 @@
-"""Bounded, volatile Hitomi thumbnail relay. No image file or database writes."""
+"""Bounded, volatile Hitomi cover relay. No image file or database writes."""
 from collections import OrderedDict
 import http.client
 import ipaddress
+import re
 import socket
 import ssl
 import threading
@@ -9,6 +10,7 @@ import time
 from urllib.parse import urlsplit
 import importer
 import nhentai
+import cover_resize
 
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 CACHE_BYTES = 32 * 1024 * 1024
@@ -16,6 +18,33 @@ CACHE_TTL = 300
 REQUEST_SECONDS = 20
 SLOTS = threading.BoundedSemaphore(4)
 IMAGE_HOSTS = {'atn.gold-usergeneratedcontent.net', 'btn.gold-usergeneratedcontent.net'}
+READER_HOSTS = {'w1.gold-usergeneratedcontent.net', 'w2.gold-usergeneratedcontent.net'}
+_reader_routes = None
+_reader_routes_time = 0
+_reader_routes_lock = threading.Lock()
+
+def reader_image_url(image_hash):
+    """Parse the source's restricted routing data, without executing source JS."""
+    global _reader_routes, _reader_routes_time
+    if not re.fullmatch(r'[0-9a-f]{64}', image_hash):
+        raise RelayError('Invalid reader image hash')
+    with _reader_routes_lock:
+        if _reader_routes is None or time.monotonic() - _reader_routes_time > 3600:
+            text = importer.fetch('/gg.js')
+            prefix = re.search(r"\bb:\s*'([0-9]{1,14}/)'", text)
+            formula = re.search(r'parseInt\(m\[2\]\+m\[1\],\s*16\)\.toString\(10\)', text)
+            if not prefix or not formula:
+                raise RelayError('Reader image routing format changed')
+            _reader_routes = (prefix[1], importer.parse_thumbnail_routes(text))
+            _reader_routes_time = time.monotonic()
+        prefix, (default, numbers, override) = _reader_routes
+    shard = int(image_hash[-1] + image_hash[-3:-1], 16)
+    server = 1 + (override if shard in numbers else default)
+    return f'https://w{server}.gold-usergeneratedcontent.net/{prefix}{shard}/{image_hash}.webp'
+
+def valid_reader_path(path):
+    match = re.fullmatch(r'/[0-9]{1,14}/([0-9]{1,4})/([0-9a-f]{64})\.webp', path)
+    return bool(match and int(match[1]) == int(match[2][-1] + match[2][-3:-1], 16))
 
 class RelayError(Exception):
     pass
@@ -52,7 +81,8 @@ class MemoryCache:
                     pending = {'event':threading.Event(), 'error':None, 'result':None}
                     self.loading[key] = pending
                     break
-            if not pending['event'].wait(REQUEST_SECONDS + 5):
+            # Reader lookup + full-size request + thumbnail fallback are bounded.
+            if not pending['event'].wait(REQUEST_SECONDS * 2 + 20):
                 raise RelayError('Cover request timed out')
             if pending['error']:
                 raise pending['error']
@@ -82,13 +112,15 @@ class MemoryCache:
 CACHE = MemoryCache()
 
 def fetch_image(url):
-    """Fetch only a canonical thumbnail on a pinned public TLS address."""
+    """Fetch only a canonical cover image on a pinned public TLS address."""
     parsed = urlsplit(url)
-    if parsed.scheme != 'https' or parsed.hostname not in IMAGE_HOSTS | nhentai.IMAGE_HOSTS or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.query or parsed.fragment:
+    if parsed.scheme != 'https' or parsed.hostname not in IMAGE_HOSTS | READER_HOSTS | nhentai.IMAGE_HOSTS or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.query or parsed.fragment:
         raise RelayError('Unsupported cover host')
     # Re-validate the path without another network lookup or JS execution.
     if parsed.hostname in nhentai.IMAGE_HOSTS:
         valid_path = nhentai.valid_image(url)
+    elif parsed.hostname in READER_HOSTS:
+        valid_path = valid_reader_path(parsed.path)
     else:
         valid_path = importer.resolve_thumbnail_url(url, (0, set(), 0)).split('.net/', 1)[1] == parsed.path.lstrip('/')
     if not valid_path:
@@ -168,4 +200,14 @@ def load(saved_url):
     if nhentai.valid_image(saved_url):
         return CACHE.get(saved_url, lambda: fetch_image(saved_url))
     url = importer.resolve_thumbnail_url(saved_url)
-    return CACHE.get(url, lambda: fetch_image(url))
+    def loader():
+        # Keep saved URLs intact; old and new interior covers both benefit.
+        match = re.fullmatch(r'/webpsmalltn/[0-9a-f]/[0-9a-f]{2}/([0-9a-f]{64})\.webp', urlsplit(url).path)
+        if match:
+            try:
+                return cover_resize.thumbnail(*fetch_image(reader_image_url(match[1])))
+            except (RelayError, ValueError, OSError, ImportError):
+                # Cache the fallback too, avoiding repeated failed upgrades.
+                pass
+        return fetch_image(url)
+    return CACHE.get(url, loader)
