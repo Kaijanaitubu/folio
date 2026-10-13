@@ -209,7 +209,7 @@ class Handler(BaseHTTPRequestHandler):
                 elif self.command=='DELETE': c.execute('DELETE FROM saved_searches WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
                 else: raise ValueError('Invalid saved search request')
             elif action=='batch' and self.command=='POST':
-                result=features.batch_apply(c,data.get('id')) if ident=='apply' else features.batch_preview(c,data) if ident=='preview' else None
+                result=features.batch_trash(c,data) if ident=='trash' else features.batch_apply(c,data.get('id')) if ident=='apply' else features.batch_preview(c,data) if ident=='preview' else None
                 if result is None: raise ValueError('Invalid batch request')
             elif action=='entities':
                 if self.command=='GET':

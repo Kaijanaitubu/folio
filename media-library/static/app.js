@@ -1,5 +1,6 @@
 import {createMarkUI,markEn,markJa} from './mark-ui.js';
 import {searchHelpHTML} from './search-help.js';
+import {createBatchDelete} from './batch-delete.js';
 import {createTagUI,tagEn,tagJa} from './tag-ui.js';
 import {createNhentaiUI} from './nhentai-ui.js';
 import {nhentaiEn,nhentaiJa} from './nhentai-text.js';
@@ -375,19 +376,22 @@ async function refreshSearchSaveButton(){
  }finally{if(button.isConnected&&activeLibraryHash===hash)button.disabled=false}
 }
 function resetSelection(){selecting=false;selectedWorks.clear();selectionVersion++}
+const batchDeletion=createBatchDelete({getIds:()=>[...selectedWorks],getContext:()=>({hash:activeLibraryHash,version:selectionVersion}),confirm,api,t,onBusy:busy=>{if($('#batch-trash'))$('#batch-trash').disabled=busy||!selectedWorks.size;if($('#batch-edit'))$('#batch-edit').disabled=busy||!selectedWorks.size},onDeleted:async(result,context)=>{markLibraryDirty();toast(t('batchDeleted').replace('{count}',result.deleted));if(route().path==='/library'&&activeLibraryHash===context.hash&&selectionVersion===context.version){resetSelection();await library()}}});
 function toggleWorkSelection(id,checked){if(!selecting){selecting=true;selectionVersion++}if(checked)selectedWorks.add(id);else selectedWorks.delete(id);bindSelectionCards()}
 function bindSelectionCards(){
  const actions=$('#selection-actions');if(!actions)return;
  actions.hidden=!selecting;
  $('#selection-exit').hidden=!selecting;
- actions.innerHTML=selecting?`<div class="selection-primary"><button type="button" id="select-visible" class="btn" aria-label="${esc(t('selectVisible'))}" title="${esc(t('selectVisible'))}">${esc(t('selectVisibleShort'))}</button><button type="button" id="select-results" class="btn" aria-label="${esc(t('selectResults'))}" title="${esc(t('selectResults'))}">${esc(t('selectResultsShort'))}</button></div><div class="selection-summary"><span role="status">${esc(t('selectedCount'))}: ${selectedWorks.size}</span>${btn(t('batchEdit'),'batch-edit','primary')}</div>`:'';
+ actions.innerHTML=selecting?`<div class="selection-primary"><button type="button" id="select-visible" class="btn" aria-label="${esc(t('selectVisible'))}" title="${esc(t('selectVisible'))}">${esc(t('selectVisibleShort'))}</button><button type="button" id="select-results" class="btn" aria-label="${esc(t('selectResults'))}" title="${esc(t('selectResults'))}">${esc(t('selectResultsShort'))}</button></div><div class="selection-summary"><span role="status">${esc(t('selectedCount'))}: ${selectedWorks.size}</span>${btn(t('batchEdit'),'batch-edit','primary')}<button type="button" id="batch-trash" class="btn iconbtn danger" aria-label="${esc(t('deleteSelected'))}" title="${esc(t('deleteSelected'))}">${icon('trash')}</button></div>`:'';
  $$('[data-work-check]').forEach(input=>{const id=input.dataset.workCheck;input.checked=selectedWorks.has(id);input.closest('.work-card').classList.toggle('work-selected',input.checked);input.onchange=()=>toggleWorkSelection(id,input.checked)});
  $$('.card').forEach(a=>{const id=a.getAttribute('href').split('/').pop();a.onclick=e=>{if(selecting){e.preventDefault();toggleWorkSelection(id,!selectedWorks.has(id))}else captureLibrary()}});
  if(!selecting)return;
  $('#select-visible').onclick=()=>{libraryItems.forEach(w=>selectedWorks.add(w.id));bindSelectionCards()};
  $('#select-results').onclick=safely(async()=>{const b=$('#select-results');b.disabled=true;try{const hash=activeLibraryHash,version=selectionVersion;const r=await api('works?ids=1&q='+encodeURIComponent(route().params.get('q')||''));if(route().path!=='/library'||activeLibraryHash!==hash||!selecting||version!==selectionVersion)return;r.ids.forEach(id=>selectedWorks.add(id));bindSelectionCards()}finally{if(b.isConnected)b.disabled=false}});
- $('#batch-edit').disabled=!selectedWorks.size;
+ $('#batch-edit').disabled=batchDeletion.busy||!selectedWorks.size;
  $('#batch-edit').onclick=()=>batchEditor([...selectedWorks]);
+ $('#batch-trash').disabled=batchDeletion.busy||!selectedWorks.size;
+ $('#batch-trash').onclick=safely(batchDeletion.run);
 }
 async function trashPage(){
  const items=await api('trash');shell('trash',heading(t('trash'),t('trashHint'),items.length?btn(t('emptyTrash'),'trash-empty','danger'):'')+`<div id="trash-error"></div><div class="row wrap feature-actions">${items.length?btn(t('restoreSelected'),'restore-selected','primary'):''}</div><div class="directory-list">${items.map(w=>`<div class="directory-row trash-row"><label class="check-label"><input type="checkbox" data-trash-check="${w.id}"><span><b>${esc(w.title)}</b><small>${esc(new Date(w.deleted_at).toLocaleString(lang))}</small></span></label><div class="row wrap"><button class="btn" data-restore="${w.id}">${esc(t('restore'))}</button><button class="btn danger" data-purge="${w.id}">${esc(t('permanentDelete'))}</button></div></div>`).join('')||`<p>${esc(t('trashEmpty'))}</p>`}</div>`);

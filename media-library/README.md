@@ -222,3 +222,5 @@ Purchased is now the first of five independent marks: ○ △ □ ♡ ☆. Set s
 Search `mark:124` for marks 1, 2 and 4 all on, `mark:=124` for exactly those marks, `mark:1/mark:4` for either, `-mark:2` for 2 off, and `mark:none` / `mark:any` for none / any. Mark numbers remain fixed when labels change. Batch editing supports adding, removing, replacing and clearing marks, with preview and guarded History undo.
 
 Click **Search help** beside the Library's operator hints for the complete English/Japanese guide, including your current rating dimensions and mark labels. The dialog preserves the current search and sort. [Detailed behavior and API contract](MARKS-AND-SEARCH-SPEC.md).
+
+Selected works can also be deleted together: click the Trash icon beside **Batch edit**, check the count in the confirmation, then confirm. They remain in Trash for 30 days and can be restored together. Cancel retains your selection.

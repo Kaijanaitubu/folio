@@ -52,3 +52,11 @@ Approved: 2026-10-12. These features extend the current single-owner application
 ## Verification and deployment
 
 Tests use disposable SQLite databases. Regression coverage includes Trash/URL claims/counts, missing-information confirmation, race-safe undo, exact scale restoration, batch atomicity/no-ops/expiry/replay, saved-search invalidation, token enforcement and restricted image relay. Browser checks cover both locales and source/share workflows. See VERIFICATION.md for results and remaining real-device checks.
+
+## Batch deletion (2026-10-13)
+
+- Selection controls include an icon-only Delete selected button next to Batch edit. It is disabled for an empty selection or while a delete confirmation/request is pending. English/Japanese accessible labels and hover titles identify the action.
+- Clicking freezes the selected IDs, including selections spanning pagination or all filtered results. A confirmation displays the exact distinct count and explains Trash retention/restoration. Cancel or Escape sends no mutation and retains the selection. Confirm sends the frozen IDs, never a dynamically re-evaluated query.
+- POST /api/batch/trash requires the existing mutation token and same-origin checks. The server accepts a nonempty array of work IDs, deduplicates them, starts an immediate write transaction, and validates that every target belongs to the current owner and is active. Missing, already trashed or another owner's targets cancel the entire operation. No partial deletion is allowed.
+- All selected works move to the existing 30-day Trash. Sources, metadata, ratings, marks, notes and bookmark provenance remain intact. They can be restored together from Trash; permanent purge is not part of this action. No new history-based deletion undo is added.
+- Success reports the actual count, invalidates the gallery snapshot, clears selection and refreshes the same query/sort. Error leaves selection available for retry. A late result cannot navigate away from a different page; duplicate clicks are suppressed.

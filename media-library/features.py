@@ -61,10 +61,21 @@ def save_work(c,data,wid=None):
 
 def trash(c,wid):
     if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
-    db.get_work(c,wid)
     w=db.get_work(c,wid)
     c.execute('INSERT OR REPLACE INTO trash_snapshots VALUES(?,?)',(wid,json.dumps({'entities':{e['id']:e['name'] for k in KINDS for e in w[k]},'dimensions':{d['id']:d['name'] for d in db.dimensions(c) if d['id'] in w['ratings']}},ensure_ascii=False)))
     c.execute('UPDATE works SET deleted_at=?,updated=? WHERE id=?',(db.now(),db.now(),wid))
+
+def batch_trash(c,data):
+    """Move a frozen explicit selection to Trash, together or not at all."""
+    ids=data.get('ids')
+    if not isinstance(ids,list) or not ids or any(not isinstance(wid,str) or not wid for wid in ids):
+        raise ValueError('Select at least one entry')
+    ids=sorted(set(ids))
+    if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
+    active={r[0] for r in c.execute('SELECT id FROM works WHERE owner=? AND deleted_at IS NULL',(db.OWNER,))}
+    if not set(ids)<=active: raise ValueError('Selected entries changed; reload before deleting')
+    for wid in ids: trash(c,wid)
+    return {'deleted':len(ids)}
 
 def trash_list(c):
     return [db.get_work(c,r['id'],include_deleted=True) for r in c.execute('SELECT id FROM works WHERE owner=? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC',(db.OWNER,))]

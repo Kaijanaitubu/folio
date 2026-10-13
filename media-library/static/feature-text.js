@@ -6,3 +6,5 @@ Object.assign(featureJa,{serverHint:"このPCを起動し、スリープしな�
 
 Object.assign(featureEn,{backToBatch:'Back to editing'});
 Object.assign(featureJa,{backToBatch:'編集に戻る'});
+Object.assign(featureEn,{deleteSelected:'Delete selected',batchDeleteConfirm:'Delete the selected works ({count})? Are you sure?',batchDeleteHint:'Selected works will be kept in Trash for 30 days and can be restored there.',batchDeleted:'Moved to Trash: {count}'});
+Object.assign(featureJa,{deleteSelected:'選択した作品を削除',batchDeleteConfirm:'{count}件の作品を削除します。よろしいですか？',batchDeleteHint:'ゴミ箱へ移動し、30日間保持します。ゴミ箱から復元できます。',batchDeleted:'{count}件の作品をゴミ箱へ移動しました'});

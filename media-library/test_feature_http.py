@@ -106,4 +106,27 @@ class FeatureHTTPTests(unittest.TestCase):
         self.api('history/'+history[0]['id']+'/undo','POST',{})
         self.assertEqual(self.api('works/'+w['id'])['marks'],[1,4])
 
+    def test_batch_trash_is_atomic_and_restore_preserves_data(self):
+        a=self.api('works','POST',{'title':'A','marks':[1,4],'review':'Keep','tag':['original'],'links':[{'url':'https://example.org/a'}]})
+        b=self.api('works','POST',{'title':'B'})
+        self.assertEqual(self.request('/api/batch/trash','POST',{'ids':[a['id']]},token=False)[0],403)
+        for ids in ([],None,'all',[None],[a['id'],'missing']):
+            self.assertEqual(self.request('/api/batch/trash','POST',{'ids':ids})[0],400)
+            self.assertEqual(self.api('works')['total'],2)
+        with db.transaction() as c:
+            c.execute("INSERT INTO owners(id) VALUES('other')")
+            c.execute('UPDATE works SET owner=? WHERE id=?',('other',b['id']))
+        self.assertEqual(self.request('/api/batch/trash','POST',{'ids':[a['id'],b['id']]})[0],400)
+        self.assertFalse(self.api('works/'+a['id'])['deleted_at'])
+        with db.transaction() as c: c.execute('UPDATE works SET owner=? WHERE id=?',(db.OWNER,b['id']))
+        result=self.api('batch/trash','POST',{'ids':[a['id'],b['id'],a['id']]})
+        self.assertEqual(result['deleted'],2);self.assertEqual(self.api('works')['total'],0)
+        self.assertEqual(len(self.api('trash')),2)
+        self.assertEqual(self.request('/api/batch/trash','POST',{'ids':[a['id']]})[0],400)
+        preview=self.api('trash/restore-preview','POST',{'ids':[a['id'],b['id']]})
+        self.api('trash/restore','POST',{'ids':[a['id'],b['id']],'signature':preview['signature']})
+        restored=self.api('works/'+a['id'])
+        for field in ('title','review','marks','tag','links','ratings'):self.assertEqual(restored[field],a[field])
+        self.assertEqual(self.api('works')['total'],2)
+
 if __name__=='__main__':unittest.main()

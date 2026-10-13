@@ -1,4 +1,5 @@
 const messages={
+ 'Selected entries changed; reload before deleting':'選択した作品が削除・変更されています。再読み込みしてから削除してください',
  'Choose mark numbers 1–5':'マーク番号は1〜5で指定してください',
  'Enter five mark labels, up to 80 characters each':'5個のラベルをそれぞれ80文字以内で入力してください',
  'Mark labels changed; reload before saving':'マークのラベルが変更されています。再読み込みしてから保存してください',
