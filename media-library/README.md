@@ -224,3 +224,5 @@ Search `mark:124` for marks 1, 2 and 4 all on, `mark:=124` for exactly those mar
 Click **Search help** beside the Library's operator hints for the complete English/Japanese guide, including your current rating dimensions and mark labels. The dialog preserves the current search and sort. [Detailed behavior and API contract](MARKS-AND-SEARCH-SPEC.md).
 
 Selected works can also be deleted together: click the Trash icon beside **Batch edit**, check the count in the confirmation, then confirm. They remain in Trash for 30 days and can be restored together. Cancel retains your selection.
+
+When choosing metadata for a work or batch edit, **Create new** carries the current search text into the new name field. All five metadata types support this. The Close × stays at the top right while the list scrolls; Create new remains below the list.
