@@ -246,3 +246,8 @@ Further follow-up: moved selection exit to a floating 44 px X above the utility 
 
 - Work detail sets document.title to the exact work title. Every new route starts with the standard Folio title; a route-version guard rejects late detail responses. No backend/data changes or production restart.
 - JS syntax and existing cover renderer checks passed. Disposable browser verified Morning Study as the tab title and restoration of Folio — Personal Media Library on Settings. Ignored screenshot: test-output/work-page-title.png. Personal library untouched.
+
+## 2026-10-13 — consistent page titles
+
+- Centralized route titles as content + ` - Folio`, with English page labels independent of UI language. Exact requested examples: metadata - Folio; rating1:3 Search - Folio; 悪友 - Folio. Empty library queries use Library. Detail uses the fetched work title, edit includes the work title and Edit; imports/jobs, ratings, saved searches, Trash, history, settings, new work, source and share routes have descriptive labels. Initial HTML title is Library - Folio.
+- Browser verified metadata, mark:4 Search, Morning Study detail and Settings transitions. Formatter checks covered the requested Japanese/detail/search examples and edit/job/home cases. All eight existing Node flow suites and JS syntax passed. No console errors/warnings. Screenshot: ignored test-output/page-titles-search.png. Static frontend change only; no production restart or DB edits.
