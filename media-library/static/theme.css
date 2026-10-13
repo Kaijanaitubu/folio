@@ -114,3 +114,6 @@ summary { cursor: pointer; overflow-wrap: anywhere; }
 
 /* Suggestion rows are nested inside the utility bar, not its Add action. */
 :root .utility-bar .utility-search .suggestions button{color:var(--ink)}
+
+/* Desktop notifications stay clear of fixed Save/Delete and search controls. */
+@media(min-width:701px){#toast{top:24px;right:24px;bottom:auto;left:auto;transform:none;max-width:min(380px,calc(100vw - 48px));pointer-events:none}}

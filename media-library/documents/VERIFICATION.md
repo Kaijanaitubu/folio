@@ -251,3 +251,8 @@ Further follow-up: moved selection exit to a floating 44 px X above the utility 
 
 - Centralized route titles as content + ` - Folio`, with English page labels independent of UI language. Exact requested examples: metadata - Folio; rating1:3 Search - Folio; 悪友 - Folio. Empty library queries use Library. Detail uses the fetched work title, edit includes the work title and Edit; imports/jobs, ratings, saved searches, Trash, history, settings, new work, source and share routes have descriptive labels. Initial HTML title is Library - Folio.
 - Browser verified metadata, mark:4 Search, Morning Study detail and Settings transitions. Formatter checks covered the requested Japanese/detail/search examples and edit/job/home cases. All eight existing Node flow suites and JS syntax passed. No console errors/warnings. Screenshot: ignored test-output/page-titles-search.png. Static frontend change only; no production restart or DB edits.
+
+## 2026-10-13 — desktop notifications clear Save
+
+- Desktop edit actions and toast both used bottom:100px, causing notifications to cover Save. At widths above 700px, toast now sits top-right with bounded width and pointer-events:none. Mobile placement is unchanged.
+- Disposable server returned synthetic import metadata without external fetches. Browser observed a visible import notification, then an unchanged-import notification at y24–65 while Save was y568–612: no intersection and pointer-events:none. No console errors/warnings. Screenshot: ignored test-output/desktop-toast-clear-save.png. No records saved; no personal DB mutation. CSS-only deployment; production server not restarted.
