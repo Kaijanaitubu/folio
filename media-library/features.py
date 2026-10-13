@@ -170,7 +170,7 @@ def searches(c):
     for row in c.execute('SELECT * FROM saved_searches WHERE owner=? ORDER BY position,id',(db.OWNER,)):
         item=dict(row)
         try:
-            compile_query(item['query'],dims)
+            compile_query(item['query'],dims,db.OWNER)
             valid_sort(item['sort'],dims)
             item['error']=''
         except ValueError as e: item['error']=str(e)
@@ -184,7 +184,7 @@ def save_search(c,data,ident=None):
     name=str(data.get('name','')).strip(); query=str(data.get('query','')).strip(); sort=data.get('sort','newest')
     if not name or len(name)>200 or len(query)>4096: raise ValueError('Enter a search name (up to 200 characters) and a valid query')
     dims={d['number']:d for d in db.dimensions(c)}
-    compile_query(query,dims); valid_sort(sort,dims)
+    compile_query(query,dims,db.OWNER); valid_sort(sort,dims)
     old=c.execute('SELECT * FROM saved_searches WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone() if ident else None
     if ident and not old: raise ValueError('Saved search not found')
     position=data.get('position',old['position'] if old else c.execute('SELECT COALESCE(max(position),0)+10 FROM saved_searches WHERE owner=?',(db.OWNER,)).fetchone()[0])
@@ -204,7 +204,7 @@ def reorder_searches(c,ids):
 def batch_targets(c,data):
     if data.get('all'):
         dims={d['number']:d for d in db.dimensions(c)}
-        condition,args=compile_query(data.get('query',''),dims)
+        condition,args=compile_query(data.get('query',''),dims,db.OWNER)
         return [r[0] for r in c.execute('SELECT w.id FROM works w WHERE w.owner=? AND w.deleted_at IS NULL AND '+condition+' ORDER BY w.id',[db.OWNER]+args)]
     ids=data.get('ids',[])
     if not isinstance(ids,list): raise ValueError('Invalid selection')

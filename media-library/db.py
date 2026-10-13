@@ -311,7 +311,7 @@ def purge_work(c,wid):
 
 def list_works(c,q='',sort='newest',offset=0,limit=40,seed='0',random_one=False):
     dims={d['number']:d for d in dimensions(c)}
-    condition,args=compile_query(q,dims)
+    condition,args=compile_query(q,dims,OWNER)
     where='w.owner=? AND w.deleted_at IS NULL AND '+condition; args=[OWNER]+args
     total=c.execute('SELECT count(*) FROM works w WHERE '+where,args).fetchone()[0]
     order={'newest':'w.created DESC','oldest':'w.created ASC','recent':'w.opened IS NULL,w.opened DESC','least':'w.opened IS NOT NULL,w.opened ASC','random':'shuffle(w.id,?)'}.get(sort,'w.created DESC')

@@ -51,21 +51,24 @@ def parse(query):
         groups.append(group)
     return groups
 
-def compile_query(query, dimensions):
+def compile_query(query, dimensions, owner='local'):
     params = []
     def p(value):
         params.append(value); return '?'
     def entity(value, kinds, gender=None, substring=False):
         compare = 'instr(fold(e.name), ?) > 0' if substring else 'fold(e.name) = ?'
         alias = 'instr(fold(a.name), ?) > 0' if substring else 'fold(a.name) = ?'
-        params.extend(kinds)
+        params.extend([owner, *kinds])
         tail = ''
         if gender:
             tail = ' AND e.gender = ?'; params.append(gender)
         params.extend([value.casefold(), value.casefold()])
-        return ('EXISTS(SELECT 1 FROM work_entities we JOIN entities e ON e.id=we.entity_id '
-                'WHERE we.work_id=w.id AND e.owner=w.owner AND e.kind IN (' + ','.join('?' for _ in kinds) + ')' + tail +
-                ' AND (' + compare + ' OR EXISTS(SELECT 1 FROM aliases a WHERE a.entity_id=e.id AND ' + alias + ')))')
+        # These independent IN subqueries build candidate sets once per statement.
+        # Correlating dictionary lookups with w would repeat name/alias matching
+        # for every work, especially when a query has few or no matches.
+        return ('w.id IN (SELECT we.work_id FROM work_entities we WHERE we.entity_id IN '
+                '(SELECT e.id FROM entities e WHERE e.owner=? AND e.kind IN (' + ','.join('?' for _ in kinds) + ')' + tail +
+                ' AND (' + compare + ' OR e.id IN (SELECT a.entity_id FROM aliases a WHERE ' + alias + '))))')
     def expression(field, value):
         if field=='none': field='neutral'
         if field in ('title', 'review'):
