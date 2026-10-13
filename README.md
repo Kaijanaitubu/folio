@@ -20,6 +20,8 @@ This version uses one shared local library without account authentication. Host 
 ## Development references
 
 - [Development roadmap and hosting options (Japanese)](media-library/ROADMAP.md) — record new requests, proposals, decisions, status, and completion here; a listed proposal is not approval to implement it.
+- [Public edition discussion (Japanese)](media-library/PUBLIC-EDITION-DISCUSSION.md) — user direction, shared catalog proposals, and unresolved decisions.
+- [momon-ga importer feasibility (Japanese)](media-library/MOMONGA-RESEARCH.md) — observed metadata/image structure and implementation questions; research only.
 - [Requirements specification](Personal-Media-Database-Requirements-v2.0.md)
 - [Verification notes](media-library/VERIFICATION.md)
 - [Thumbnail investigation](media-library/THUMBNAIL-INVESTIGATION.md)

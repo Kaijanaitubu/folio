@@ -20,6 +20,8 @@ python server.py --host 127.0.0.1 --port 8765
 ## 開発資料
 
 - [今後の開発・運用ロードマップ（日本語）](media-library/ROADMAP.md) — 新しい要望・提案、決定内容、着手状況、完了をこの資料で管理します。記載された候補が実装承認済みとは限りません。
+- [公開版の仕様会議記録](media-library/PUBLIC-EDITION-DISCUSSION.md) — ユーザーの方針、共有カタログへの提案、未決定事項を分けて記録しています。
+- [momon-gaインポーターの実現性調査](media-library/MOMONGA-RESEARCH.md) — メタデータ・画像構造と実装前の確認事項。現時点では調査のみです。
 
 以下の資料は英語です。
 
