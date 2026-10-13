@@ -6,6 +6,8 @@ A working PC-hosted implementation of Personal Media Database Requirements v2.0.
 
 Future requests, hosting options, and implementation status are tracked in the [development roadmap (Japanese)](ROADMAP.md). Update that file as proposals are discussed, approved, implemented, or deferred.
 
+momon-ga work pages are supported in individual imports, bookmark HTML, bookmarklets and shared links. Parodies become series; tags share nhentai's None/most-used-attribute policy. Covers use page 1 and the RAM-only relay. Mylist import is deferred. See [the importer specification (Japanese)](MOMONGA-SPEC.md).
+
 ## Start on this PC
 
 Open PowerShell in this directory and run:

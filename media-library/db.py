@@ -152,7 +152,7 @@ def source_matches(c,value):
     value=url(value)
     if len(value)>4096: raise ValueError('Source URL is too long')
     identity=importer.source_identity(value)
-    if not identity: raise ValueError('Use a Hitomi or nhentai work or reader URL')
+    if not identity: raise ValueError('Use a Hitomi, nhentai or momon-ga work URL')
     gid=identity[1]
     exact={r['id']:r for r in exact_sources(c,value)}; related={}
     for row in c.execute('SELECT w.id,w.title,w.deleted_at,l.url FROM works w JOIN links l ON l.work_id=w.id WHERE w.owner=? AND instr(l.url,?)>0 ORDER BY w.title,w.id,l.position',(OWNER,gid)):

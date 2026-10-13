@@ -122,6 +122,9 @@ def parse_gallery(text,cover_page=1):
 
 def source_identity(url):
     import nhentai
+    import momonga
+    parsed=momonga.location(url)
+    if parsed: return ('momonga',parsed[1])
     parsed=nhentai.location(url)
     if parsed: return ('nhentai',parsed[0])
     try:
@@ -133,6 +136,8 @@ def source_identity(url):
 
 def import_url(url):
     import nhentai
+    import momonga
+    if momonga.location(url): return momonga.import_url(url)
     if nhentai.location(url): return nhentai.import_url(url)
     gid=gallery_id(url)
     if not gid: raise ValueError('Unsupported URL; save it as a source or enter metadata manually')
@@ -148,6 +153,10 @@ def import_url(url):
         result['warnings'].append('Cover URL unavailable; other metadata was retrieved')
     if not result['title'].strip(): result['warnings'].append('No title was retrieved')
     return result
+
+def attribute_less_source(url):
+    identity=source_identity(url)
+    return bool(identity and identity[0] in ('nhentai','momonga'))
 
 class Bookmarks(HTMLParser):
     def __init__(self):

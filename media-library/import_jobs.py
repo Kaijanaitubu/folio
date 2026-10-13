@@ -6,6 +6,7 @@ import db
 import importer
 import tag_policy
 import nhentai
+import momonga
 import nhentai_credentials as credentials
 import import_matching as matching
 
@@ -46,6 +47,19 @@ def init(c):
         for row in c.execute('SELECT work_id,title FROM work_titles').fetchall():
             c.execute('UPDATE work_titles SET title_key=? WHERE work_id=? AND title=?',(matching.title_key(row['title']),row['work_id'],row['title']))
         c.execute('INSERT INTO migrations VALUES(6,?)',(db.now(),))
+    if not c.execute('SELECT 1 FROM migrations WHERE version=9').fetchone():
+        # Preserve manually saved source URLs; update their comparison keys only.
+        affected=set()
+        for row in c.execute('SELECT l.id,l.url,l.url_key,w.owner FROM links l JOIN works w ON w.id=l.work_id').fetchall():
+            if not momonga.location(row['url']): continue
+            normalized=db.normalize_url(row['url'])
+            affected.update(((row['owner'],row['url_key']),(row['owner'],normalized)))
+            c.execute('UPDATE links SET url_key=? WHERE id=?',(normalized,row['id']))
+        for owner,value in affected:
+            c.execute('DELETE FROM source_claims WHERE owner=? AND url_key=?',(owner,value))
+            work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
+            if work: c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
+        c.execute('INSERT INTO migrations VALUES(9,?)',(db.now(),))
 
 def default_tag_mode(c):
     row=c.execute('SELECT tag_mode FROM import_settings WHERE owner=?',(db.OWNER,)).fetchone()
@@ -134,8 +148,11 @@ def process_item(item):
             c.execute("UPDATE job_items SET status='pending' WHERE id=?",(item['id'],)); return
     # No SQLite transaction is held while waiting for rate limits or network responses.
     token=nhentai.CANCEL.set(lambda:stopped(item['job_id']))
+    momonga_token=momonga.CANCEL.set(lambda:stopped(item['job_id']))
     try: data=importer.import_url(item['url'])
-    finally: nhentai.CANCEL.reset(token)
+    finally:
+        nhentai.CANCEL.reset(token)
+        momonga.CANCEL.reset(momonga_token)
     source_title=str(data.get('title') or '').strip(); bookmark=str(item.get('label') or '').strip()
     title=(bookmark or source_title) if current['title_mode']=='bookmark' else (source_title or bookmark)
     if not title: raise ValueError('No title retrieved; retry or add manually')
@@ -145,7 +162,7 @@ def process_item(item):
         c.execute('BEGIN IMMEDIATE'); current=job(c,item['job_id'])
         if current['status']!='running':
             c.execute('UPDATE job_items SET status=? WHERE id=?',('cancelled' if current['status']=='cancelled' else 'pending',item['id'])); return
-        if nhentai.location(item['url']): matching.apply_tags(c,data,current['tag_mode'],json.loads(current['tag_snapshot']))
+        if importer.attribute_less_source(item['url']): matching.apply_tags(c,data,current['tag_mode'],json.loads(current['tag_snapshot']))
         review_or_finish(c,item,data,current)
 
 

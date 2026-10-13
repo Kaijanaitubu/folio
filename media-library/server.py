@@ -14,6 +14,7 @@ import db
 import features
 import importer
 import cover_relay
+import cover_sources
 import nhentai
 import nhentai_credentials
 import import_jobs
@@ -91,7 +92,7 @@ class Handler(BaseHTTPRequestHandler):
         if not cover_relay.SLOTS.acquire(timeout=25):
             self.send_json({'error':'Cover relay is busy; try again'},503); return
         try:
-            mime,raw=cover_relay.load(row['cover'])
+            mime,raw=cover_sources.load(row['cover'])
             self.send_response(200)
             self.send_header('Content-Type',mime)
             self.send_header('Content-Length',str(len(raw)))
@@ -136,7 +137,7 @@ class Handler(BaseHTTPRequestHandler):
         if action=='covers' and ident=='preview' and self.command=='POST':
             if not cover_relay.SLOTS.acquire(timeout=25): raise ValueError('Cover relay is busy; try again')
             try:
-                mime,raw=cover_relay.load(data.get('url',''))
+                mime,raw=cover_sources.load(data.get('url',''))
                 self.send_response(200); self.send_header('Content-Type',mime)
                 self.send_header('Content-Length',str(len(raw))); self.send_header('Cache-Control','no-store')
                 self.send_header('X-Content-Type-Options','nosniff'); self.end_headers(); self.wfile.write(raw)
@@ -248,7 +249,7 @@ class Handler(BaseHTTPRequestHandler):
                 matches=db.exact_sources(c,data['url'],data.get('exclude',''))
                 if matches: raise db.DuplicateSource(matches)
                 result=incoming
-                if nhentai.location(data['url']): import_matching.apply_tags(c,result,data.get('tag_mode',import_jobs.default_tag_mode(c)))
+                if importer.attribute_less_source(data['url']): import_matching.apply_tags(c,result,data.get('tag_mode',import_jobs.default_tag_mode(c)))
                 result['cross_candidates']=import_matching.candidates(c,result,data['url'],data.get('exclude',''))
                 title=result.get('title','').strip()
                 result['title_matches']=import_matching.title_matches(c,[title,*result.get('source_titles',[])],data.get('exclude','')) if title else []

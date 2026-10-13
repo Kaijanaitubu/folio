@@ -59,7 +59,7 @@ def tag_snapshot(c):
     return by_name
 
 def apply_tags(c,data,mode='neutral',snapshot=None):
-    if mode not in ('neutral','frequency'): raise ValueError('Invalid nhentai tag policy')
+    if mode not in ('neutral','frequency'): raise ValueError('Invalid source tag policy')
     names=snapshot if snapshot is not None else tag_snapshot(c)
     result=[]
     for item in data.get('tag',[]):
@@ -112,7 +112,9 @@ def attach(c,wid,value,titles=()):
     before=features.state(c,wid)
     position=c.execute('SELECT COALESCE(max(position),-1)+1 FROM links WHERE work_id=?',(wid,)).fetchone()[0]
     # Do not turn a new secondary source into the primary source, even on a linkless work.
-    c.execute('INSERT INTO links VALUES(?,?,?,?,?,?,?)',(db.uid(),wid,db.url(value),'nhentai' if importer.source_identity(value)[0]=='nhentai' else 'Hitomi',position,0,db.normalize_url(value)))
+    provider=importer.source_identity(value)
+    label={'nhentai':'nhentai','hitomi':'Hitomi','momonga':'momon-ga'}.get(provider[0] if provider else '', '')
+    c.execute('INSERT INTO links VALUES(?,?,?,?,?,?,?)',(db.uid(),wid,db.url(value),label,position,0,db.normalize_url(value)))
     c.execute('INSERT INTO source_claims VALUES(?,?,?)',(db.OWNER,db.normalize_url(value),wid))
     c.execute('UPDATE works SET updated=? WHERE id=?',(db.now(),wid))
     record_titles(c,wid,list(titles))

@@ -20,6 +20,10 @@ def normalize_url(value):
             return ch if ch in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~' else '%'+m[1].upper()
         return re.sub(r'%([0-9a-fA-F]{2})',replace,text)
     path=percent(u.path or '/'); query=percent(u.query); fragment=percent(u.fragment)
+    if host=='momon-ga.com' and re.fullmatch(r'/(?:fanzine|magazine)/mo[1-9][0-9]{0,11}/?',path):
+        path=path.rstrip('/')+'/'
+        query=''
+        # No numbered page anchors have been established; preserve fragments.
     if host=='nhentai.net':
         match=re.fullmatch(r'/g/([1-9][0-9]*)(?:/([1-9][0-9]*))?/?',path)
         if match:

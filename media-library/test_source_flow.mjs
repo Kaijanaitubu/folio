@@ -13,6 +13,12 @@ const location={hostname:'hitomi.la',href:source};
 vm.runInNewContext(script.slice(11),{location,alert:()=>assert.fail('unexpected alert')});
 assert.equal(new URLSearchParams(location.href.split('?')[1]).get('url'),source);
 assert.ok(location.href.startsWith(target+'/#/source?url='));
+for(const host of ['momon-ga.com','www.momon-ga.com']){
+ const sourceURL='https://'+host+'/fanzine/mo123/';
+ const momongaLocation={hostname:host,href:sourceURL};
+ vm.runInNewContext(script.slice(11),{location:momongaLocation,alert:()=>assert.fail('unexpected momon-ga rejection')});
+ assert.equal(new URLSearchParams(momongaLocation.href.split('?')[1]).get('url'),sourceURL);
+}
 assert.throws(()=>bookmarklet('javascript:alert(1)'));
 assert.throws(()=>bookmarklet('http://user:pass@localhost/'));
 let warned=false;
