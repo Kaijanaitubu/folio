@@ -192,11 +192,19 @@ def process_item(item):
     store_token=stores.CANCEL.set(lambda:stopped(item['job_id']))
     pawchive_token=pawchive.CANCEL.set(lambda:stopped(item['job_id']))
     try: data=importer.import_url(item['url'])
+    except pawchive.VideoPostSkipped as e:
+        with db.transaction() as c:
+            c.execute("UPDATE job_items SET status='skipped',message=? WHERE id=?",(str(e),item['id']))
+        return
     finally:
         nhentai.CANCEL.reset(token)
         momonga.CANCEL.reset(momonga_token)
         stores.CANCEL.reset(store_token)
         pawchive.CANCEL.reset(pawchive_token)
+    if data.get('media_kind') in ('mixed','uncertain'):
+        with db.transaction() as c:
+            c.execute("UPDATE job_items SET status='skipped',message=? WHERE id=?",('Pawchive video/image mixed or uncertain post skipped',item['id']))
+        return
     source_title=str(data.get('title') or '').strip(); bookmark=str(item.get('label') or '').strip()
     title=(bookmark or source_title) if current['title_mode']=='bookmark' else (source_title or bookmark)
     if not title: raise ValueError('No title retrieved; retry or add manually')

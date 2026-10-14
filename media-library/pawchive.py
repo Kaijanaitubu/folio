@@ -175,6 +175,21 @@ def parse_tags(value):
     if not isinstance(value,list) or len(value)>2000 or any(not isinstance(tag,str) or len(tag)>4096 for tag in value):raise ValueError('Invalid tag array')
     return list(dict.fromkeys(tag.strip() for tag in value if tag.strip()))
 
+class VideoPostSkipped(ValueError):
+    pass
+
+def media_kind(data):
+    """Classify attachment metadata only; never download video or archives."""
+    images=videos=unknown=False
+    for item in [data.get('file'),*(data.get('attachments') or [])]:
+        if not isinstance(item,dict):continue
+        path=item.get('path') or item.get('name') or ''
+        ext=path.rsplit('.',1)[-1].lower() if '.' in path else ''
+        if ext in ('jpg','jpeg','png','webp','gif','avif','bmp'):images=True
+        elif ext in ('mp4','webm','mov','mkv','avi','m4v','mpeg','mpg','ogv'):videos=True
+        elif path:unknown=True
+    return 'mixed' if videos and images else 'video' if videos and not unknown else 'uncertain' if videos or unknown else 'image' if images else 'unknown'
+
 def parse_post(data,profile,url):
     loc=location(url)
     if not loc or not loc[1]:raise ValueError('Use a full Pawchive post URL')
@@ -192,6 +207,9 @@ def parse_post(data,profile,url):
     except (ValueError,csv.Error):out['warnings'].append('Pawchive tags could not be read; other metadata was retrieved')
     attachments=data.get('attachments')
     if attachments is not None and (not isinstance(attachments,list) or len(attachments)>10000):raise ValueError('Pawchive attachment metadata exceeds the item limit')
+    out['media_kind']=media_kind(data)
+    if out['media_kind']=='video':raise VideoPostSkipped('Video-only Pawchive post skipped')
+    if out['media_kind'] in ('unknown','uncertain'):out['warnings'].append('Pawchive media type could not be determined')
     for item in [data.get('file'),*(attachments or [])]:
         path=item.get('path') if isinstance(item,dict) else None
         if image_path(path):

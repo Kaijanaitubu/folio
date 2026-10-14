@@ -200,6 +200,9 @@ async function interactiveImport(id,sourceDraft=false){
   const incoming=await api('import','POST',{url:link.url,exclude:id||'',trash_sources:(draft.trash_sources||[]).filter(c=>c.url===link.url)});
   const current=()=>draft===activeDraft&&routeVersion===importVersion;
   if(!current())return;
+  if(['mixed','uncertain'].includes(incoming.media_kind)){
+   if(!await confirm(lang==='ja'?'動画を含む投稿': 'Post contains video',lang==='ja'?'画像と動画が混在しているか、内容を判定できない投稿です。取り込みますか？':'This post contains video and images, or its contents are uncertain. Import it?',lang==='ja'?'取り込む':'Import')||!current())return;
+  }
   for(const ambiguity of incoming.ambiguities||[]){
    const selected=await new Promise(resolve=>{modal(`<h2>${esc(t('selectAlias'))}</h2><p>${esc(ambiguity.name)}</p><div class="stack">${ambiguity.choices.map(c=>`<button class="btn" data-alias-id="${c.id}">${esc(displayName(c))}${c.gender&&c.gender!=='neutral'?' · '+esc(t(c.gender)):''}</button>`).join('')}</div>${btn(t('cancel'),'alias-cancel')}`);$$('[data-alias-id]').forEach(b=>b.onclick=()=>{closeModal();resolve(ambiguity.choices.find(c=>c.id===b.dataset.aliasId))});$('#alias-cancel').onclick=()=>{closeModal();resolve(null)};dialog.oncancel=()=>resolve(null)});
    if(!selected||!current())return;
