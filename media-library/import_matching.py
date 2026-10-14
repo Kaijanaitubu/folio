@@ -5,6 +5,29 @@ import unicodedata
 import db
 import importer
 import features
+import pawchive
+
+def original_preview(c,links,exclude=''):
+    if not isinstance(links,list) or len(links)>20:raise ValueError('Invalid original link candidates')
+    result=[];seen=set()
+    for item in links:
+        value=item.get('url','') if isinstance(item,dict) else ''
+        label=pawchive.original_label(value)
+        if not label:raise ValueError('Invalid original link candidate')
+        normalized=db.normalize_url(value)
+        if normalized in seen:continue
+        seen.add(normalized)
+        matches=db.exact_sources(c,value)
+        result.append({'url':value,'label':label,'verified':False,'already_present':any(w['id']==exclude for w in matches),'matches':[w for w in matches if w['id']!=exclude]})
+    return result
+
+def available_originals(c,links,exclude=''):
+    kept=[];warnings=[]
+    for item in original_preview(c,links,exclude):
+        if item['already_present']:continue
+        if item['matches']:warnings.append({'url':item['url'],'matches':item['matches']});continue
+        kept.append({'url':item['url'],'label':item['label'],'is_primary':False})
+    return kept,warnings
 
 def key(value):
     return ' '.join(unicodedata.normalize('NFKC',str(value or '')).casefold().split())
@@ -92,7 +115,15 @@ def candidates(c,data,value,exclude=''):
     placeholders=','.join('?' for _ in titles)
     rows=c.execute(f'SELECT DISTINCT w.id,w.title,w.pages,w.language FROM works w JOIN work_titles t ON t.work_id=w.id WHERE w.owner=? AND w.deleted_at IS NULL AND w.id<>? AND t.title_key IN ({placeholders}) ORDER BY w.created,w.id',(db.OWNER,exclude,*titles)).fetchall()
     found=[]
+    # Exact original-post links still require the normal user match decision.
+    for original in original_preview(c,data.get('original_links',[]),exclude):
+        for work in original['matches']:
+            if work['deleted_at'] or any(old['id']==work['id'] for old in found):continue
+            full=db.get_work(c,work['id'])
+            work['evidence']=dict(candidate_evidence(c,full,data),title=title_key(full['title']) in titles,original_source=True)
+            found.append(work)
     for row in rows:
+        if any(old['id']==row['id'] for old in found):continue
         sources=[importer.source_identity(r[0]) for r in c.execute('SELECT url FROM links WHERE work_id=?',(row['id'],))]
         # This workflow compares different providers, not intentional pages on one provider.
         if not any(s and s[0]!=identity[0] for s in sources): continue
@@ -104,7 +135,7 @@ def candidates(c,data,value,exclude=''):
         if len(found)>=100: break
     return found
 
-def attach(c,wid,value,titles=()):
+def attach(c,wid,value,titles=(),original_links=()):
     if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
     matches=db.exact_sources(c,value)
     if matches: raise db.DuplicateSource(matches)
@@ -115,9 +146,13 @@ def attach(c,wid,value,titles=()):
     provider=importer.source_identity(value)
     import stores
     label=stores.label(value) or {'nhentai':'nhentai','hitomi':'Hitomi','momonga':'momon-ga','pawchive':'Pawchive'}.get(provider[0] if provider else '', '')
-    c.execute('INSERT INTO links VALUES(?,?,?,?,?,?,?)',(db.uid(),wid,db.url(value),label,position,0,db.normalize_url(value)))
-    c.execute('INSERT INTO source_claims VALUES(?,?,?)',(db.OWNER,db.normalize_url(value),wid))
+    originals,warnings=available_originals(c,list(original_links),wid)
+    for offset,link in enumerate([{'url':value,'label':label},*originals]):
+        c.execute('INSERT INTO links VALUES(?,?,?,?,?,?,?)',(db.uid(),wid,db.url(link['url']),link['label'],position+offset,0,db.normalize_url(link['url'])))
+        c.execute('INSERT INTO source_claims VALUES(?,?,?)',(db.OWNER,db.normalize_url(link['url']),wid))
     c.execute('UPDATE works SET updated=? WHERE id=?',(db.now(),wid))
     record_titles(c,wid,list(titles))
     features.record(c,'edit',{'works':{wid:features.changes(before,features.state(c,wid))},'titles':[work['title']]})
-    return db.get_work(c,wid)
+    result=db.get_work(c,wid)
+    if warnings:result['original_warnings']=warnings
+    return result

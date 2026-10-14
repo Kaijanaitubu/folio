@@ -185,7 +185,7 @@ class Handler(BaseHTTPRequestHandler):
             with db.transaction() as c:
                 c.execute('BEGIN IMMEDIATE')
                 if not importer.source_identity(data.get('url','')): raise ValueError('Unsupported source URL')
-                result=import_matching.attach(c,data.get('target'),data['url'],data.get('source_titles',[]))
+                result=import_matching.attach(c,data.get('target'),data['url'],data.get('source_titles',[]),data.get('original_links',[]))
             self.send_json(result); return
         incoming=None
         if action=='trash-source' and ident=='preview' and self.command=='POST':
@@ -290,6 +290,7 @@ class Handler(BaseHTTPRequestHandler):
                 matches=[w for w in matches if w['id'] not in approved]
                 if matches: raise db.DuplicateSource(matches)
                 result=incoming
+                result['original_links']=import_matching.original_preview(c,result.get('original_links',[]),data.get('exclude',''))
                 if importer.attribute_less_source(data['url']): import_matching.apply_tags(c,result,data.get('tag_mode',import_jobs.default_tag_mode(c)))
                 result['cross_candidates']=import_matching.candidates(c,result,data['url'],data.get('exclude',''))
                 title=result.get('title','').strip()

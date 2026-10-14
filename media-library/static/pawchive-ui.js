@@ -1,0 +1,22 @@
+import {favoritesBookmarklet} from './pawchive-favorites.js';
+import {originalKey} from './pawchive-sources.js';
+export function createPawchiveUI({$, $$, modal,closeModal,dialog,esc,toast,lang}){
+ const s=(en,ja)=>lang()==='ja'?ja:en;
+ function tools(){return `<section class="panel stack"><h3>${s('Pawchive Favorites','Pawchiveのお気に入り')}</h3><p>${s('Export post links from your logged-in Pawchive browser, then upload the HTML using Bookmark import below. Your password and login cookie stay in that browser.','Pawchiveにログインしたブラウザから投稿リンクを出力し、下のブックマーク取込へHTMLをアップロードします。パスワードやログインCookieはブラウザに保持されます。')}</p><ol><li>${s('Create a bookmark named “Pawchive Favorites” and replace its address with the code below. On desktop you can drag the link to your bookmarks.','「Pawchive Favorites」というブックマークを作り、URLを下のコードに置き換えます。PCではリンクをブックマークバーへドラッグできます。')}</li><li>${s('Open Pawchive, log in and run that bookmark. Confirm the reported count and save the HTML file.','Pawchiveを開いてログインし、そのブックマークを実行します。表示された件数を確認してHTMLファイルを保存してください。')}</li><li>${s('Upload the file below. Use source titles; this export has no bookmark names. Only FANBOX and Patreon posts are supported.','下からファイルを取り込みます。ブックマーク名は含まないため、取得タイトル優先で使用してください。FANBOX／Patreonの投稿のみ対応します。')}</li></ol><label><span>${s('Favorites export bookmark','お気に入り出力用ブックマーク')}</span><textarea id="paw-favorites-code" readonly rows="3" spellcheck="false"></textarea></label><div class="row wrap"><button id="paw-favorites-copy" class="btn">${s('Copy bookmark address','ブックマーク用URLをコピー')}</button><a id="paw-favorites-bookmark" draggable="true">Pawchive Favorites</a><a href="https://pawchive.pw/favorites" target="_blank" rel="noopener">${s('Open Pawchive','Pawchiveを開く')}</a></div></section>`}
+ function bind(){
+  const field=$('#paw-favorites-code');field.value=favoritesBookmarklet(lang());$('#paw-favorites-bookmark').href=field.value;
+  $('#paw-favorites-bookmark').onclick=e=>{e.preventDefault();toast(s('Run this bookmark on Pawchive.','Pawchive上でこのブックマークを実行してください。'))};
+  $('#paw-favorites-copy').onclick=async()=>{try{if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(field.value);else{field.focus();field.select();if(!document.execCommand('copy'))throw Error('copy')}toast(s('Bookmark address copied','ブックマーク用URLをコピーしました'))}catch{field.focus();field.select();toast(s('Select and copy the bookmark address','ブックマーク用URLを選択してコピーしてください'))}};
+ }
+ function batchOption(){return `<label class="check-label"><input id="bookmark-original-links" type="checkbox" checked><span>${s('Add original FANBOX / Patreon link candidates for Pawchive posts','Pawchive投稿に元FANBOX／Patreonリンク候補を追加する')}</span></label><small class="muted">${s('Links are generated from post IDs; availability is not verified. Links registered to another entry are skipped with a warning.','投稿IDから生成するため、現在の閲覧可否は未確認です。別作品に登録済みのリンクは警告を残してスキップします。')}</small>`}
+ async function chooseOriginals(incoming,draft,current){
+  const links=(incoming.original_links||[]).filter(link=>!link.already_present&&!draft.links.some(old=>originalKey(old.url)===originalKey(link.url)));
+  if(!links.length)return [];
+  return new Promise(resolve=>{
+   modal(`<h2>${s('Add original post links?','元投稿リンクを追加しますか？')}</h2><p>${s('These URLs are generated from post IDs. The posts may be deleted or members-only; availability has not been checked.','投稿IDから生成したURLです。削除済み・会員限定の可能性があり、現在の閲覧可否は確認していません。')}</p><div class="stack">${links.map((link,i)=>`<label class="check-label"><input data-paw-original="${i}" type="checkbox" ${link.matches?.length?'disabled':'checked'}><span><b>${esc(link.label)}</b><small class="shared-link">${esc(link.url)}</small>${link.matches?.length?`<small class="notice">${s('Already registered: ','登録済み：')}${link.matches.map(w=>esc(w.title)+(w.deleted_at?s(' (Trash)','（ゴミ箱）'):'' )).join(', ')}</small>`:''}</span></label>`).join('')}</div><div class="actions"><button id="paw-original-cancel" class="btn">${s('Cancel import','インポートをキャンセル')}</button><button id="paw-original-continue" class="btn primary">${s('Continue','続行')}</button></div>`);
+   const finish=result=>{closeModal();resolve(current()?result:null)};
+   $('#paw-original-cancel').onclick=()=>finish(null);$('#paw-original-continue').onclick=()=>finish($$('[data-paw-original]:checked').map(input=>links[Number(input.dataset.pawOriginal)]));dialog.oncancel=()=>resolve(null);
+  });
+ }
+ return {tools,bind,batchOption,chooseOriginals};
+}

@@ -14,7 +14,7 @@ import import_matching as matching
 
 def init(c):
     columns={r['name'] for r in c.execute('PRAGMA table_info(jobs)')}
-    additions={'kind':"TEXT NOT NULL DEFAULT 'bookmarks'",'tag_mode':"TEXT NOT NULL DEFAULT 'neutral'",'tag_snapshot':"TEXT NOT NULL DEFAULT '{}'",'match_policy':"TEXT NOT NULL DEFAULT 'ask'",'favorite_query':"TEXT NOT NULL DEFAULT ''",'enumeration_page':'INTEGER NOT NULL DEFAULT 1','enumeration_done':'INTEGER NOT NULL DEFAULT 1','enumeration_pages':'INTEGER','enumeration_total':'INTEGER','enumeration_attempts':'INTEGER NOT NULL DEFAULT 0','next_run':'REAL NOT NULL DEFAULT 0','message':"TEXT NOT NULL DEFAULT ''",'credential_id':"TEXT NOT NULL DEFAULT ''"}
+    additions={'include_original_links':'INTEGER NOT NULL DEFAULT 0','kind':"TEXT NOT NULL DEFAULT 'bookmarks'",'tag_mode':"TEXT NOT NULL DEFAULT 'neutral'",'tag_snapshot':"TEXT NOT NULL DEFAULT '{}'",'match_policy':"TEXT NOT NULL DEFAULT 'ask'",'favorite_query':"TEXT NOT NULL DEFAULT ''",'enumeration_page':'INTEGER NOT NULL DEFAULT 1','enumeration_done':'INTEGER NOT NULL DEFAULT 1','enumeration_pages':'INTEGER','enumeration_total':'INTEGER','enumeration_attempts':'INTEGER NOT NULL DEFAULT 0','next_run':'REAL NOT NULL DEFAULT 0','message':"TEXT NOT NULL DEFAULT ''",'credential_id':"TEXT NOT NULL DEFAULT ''"}
     for name,definition in additions.items():
         if name not in columns: c.execute(f'ALTER TABLE jobs ADD COLUMN {name} {definition}')
     columns={r['name'] for r in c.execute('PRAGMA table_info(job_items)')}
@@ -85,6 +85,17 @@ def init(c):
             work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
             if work:c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
         c.execute('INSERT INTO migrations VALUES(12,?)',(db.now(),))
+    if not c.execute('SELECT 1 FROM migrations WHERE version=13').fetchone():
+        affected=set()
+        for row in c.execute('SELECT l.id,l.url,l.url_key,w.owner FROM links l JOIN works w ON w.id=l.work_id').fetchall():
+            if not pawchive.original_comparison(row['url']):continue
+            normalized=db.normalize_url(row['url']);affected.update(((row['owner'],row['url_key']),(row['owner'],normalized)))
+            c.execute('UPDATE links SET url_key=? WHERE id=?',(normalized,row['id']))
+        for owner,value in affected:
+            c.execute('DELETE FROM source_claims WHERE owner=? AND url_key=?',(owner,value))
+            work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
+            if work:c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
+        c.execute('INSERT INTO migrations VALUES(13,?)',(db.now(),))
 
 def default_tag_mode(c):
     row=c.execute('SELECT tag_mode FROM import_settings WHERE owner=?',(db.OWNER,)).fetchone()
@@ -118,6 +129,7 @@ def create(c,data):
     if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
     jid=db.uid()
     c.execute('INSERT INTO jobs(id,owner,status,created,title_mode,kind,tag_mode,tag_snapshot,favorite_query,enumeration_done,credential_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)',(jid,db.OWNER,'running',db.now(),mode,kind,tags,json.dumps(matching.tag_snapshot(c),ensure_ascii=False),str(data.get('query',''))[:1000],int(kind!='favorites' or bool(data.get('items'))),fingerprint() if kind=='favorites' else ''))
+    c.execute('UPDATE jobs SET include_original_links=? WHERE id=?',(int(bool(data.get('include_original_links',False))),jid))
     items=data.get('items',[])
     if not isinstance(items,list) or len(items)>100000: raise ValueError('Select at most 100,000 import items')
     if kind=='favorites' and 'items' in data and not items: raise ValueError('Select at least one Favorite, or import all matching Favorites')
@@ -155,13 +167,16 @@ def finish_item(c,item,data,current,action='new',target=None):
     if exact:
         c.execute("UPDATE job_items SET status='duplicate_url',warnings_json=?,payload='{}' WHERE id=?",(json.dumps({'sources':exact},ensure_ascii=False),item['id'])); return
     source_title=str(data.get('_source_title',data.get('title','')))
+    original_links=data.get('original_links',[]) if current['include_original_links'] else []
+    original_warnings=[]
     if action=='attach':
-        result=matching.attach(c,target,item['url'],data.get('source_titles',[source_title])); status='linked'
+        result=matching.attach(c,target,item['url'],data.get('source_titles',[source_title]),original_links);original_warnings=result.get('original_warnings',[]);status='linked'
     else:
-        result=db.save_work(c,data); status='added'
+        originals,original_warnings=matching.available_originals(c,original_links)
+        result=db.save_work(c,dict(data,links=[*data['links'],*originals])); status='added'
     db.record_bookmark(c,result['id'],item,source_title,current['title_mode'])
-    warnings={'titles':db.title_matches(c,data['title'],result['id']),'related':[r for r in db.source_matches(c,item['url'])['matches'] if r['id']!=result['id']]}
-    c.execute('UPDATE job_items SET status=?,title=?,message=?,work_id=?,warnings_json=?,payload=? WHERE id=?',(status,data['title'],'; '.join(data.get('warnings',[])),result['id'],json.dumps(warnings,ensure_ascii=False),'{}',item['id']))
+    warnings={'original_links':original_warnings,'titles':db.title_matches(c,data['title'],result['id']),'related':[r for r in db.source_matches(c,item['url'])['matches'] if r['id']!=result['id']]}
+    c.execute('UPDATE job_items SET status=?,title=?,message=?,work_id=?,warnings_json=?,payload=? WHERE id=?',(status,data['title'],'; '.join([*data.get('warnings',[]),*(['Original links already registered; skipped: '+str(len(original_warnings))] if original_warnings else [])]),result['id'],json.dumps(warnings,ensure_ascii=False),'{}',item['id']))
 
 def process_item(item):
     with db.transaction() as c:
@@ -192,6 +207,7 @@ def process_item(item):
         if current['status']!='running':
             c.execute('UPDATE job_items SET status=? WHERE id=?',('cancelled' if current['status']=='cancelled' else 'pending',item['id'])); return
         if importer.attribute_less_source(item['url']): matching.apply_tags(c,data,current['tag_mode'],json.loads(current['tag_snapshot']))
+        if not current['include_original_links']:data.pop('original_links',None)
         review_or_finish(c,item,data,current)
 
 

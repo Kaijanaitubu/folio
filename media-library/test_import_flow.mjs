@@ -149,3 +149,19 @@ for(const automatic of [[],[{id:'other',title:'New title',evidence:{author:true}
  await context.interactiveImport(null,true);
  assert.equal(JSON.stringify(context.draft),before);assert.equal(context.edited,undefined);
 }
+
+const {mergeOriginals}=await load('pawchive-sources.js');
+for(const language of ['en','ja']){
+ const {context}=setup(language),before=structuredClone(context.draft);
+ const candidate={url:'https://artist.fanbox.cc/posts/123',label:'FANBOX'};
+ context.incoming={...structuredClone(context.draft),original_links:[candidate]};
+ context.pawchiveUI={chooseOriginals:async()=>[candidate]};context.mergeOriginals=mergeOriginals;
+ await context.interactiveImport('work');
+ assert.equal(context.draft.links.length,2);assert.equal(context.draft.links[1].is_primary,false);
+ assert.equal(context.draft.title,before.title);assert.equal(context.draft.review,before.review);assert.ok(context.edited);
+ const cancelled=setup(language),snapshot=JSON.stringify(cancelled.context.draft);
+ cancelled.context.incoming={...structuredClone(cancelled.context.draft),original_links:[candidate]};
+ cancelled.context.pawchiveUI={chooseOriginals:async()=>null};cancelled.context.mergeOriginals=mergeOriginals;
+ await cancelled.context.interactiveImport('work');assert.equal(JSON.stringify(cancelled.context.draft),snapshot);assert.equal(cancelled.context.edited,undefined);
+}
+console.log('Pawchive original-link reimport passed: unchanged metadata can add a secondary link, cancel retains the draft.');

@@ -108,6 +108,9 @@ const messages={
  'Pawchive returned a different post':'Pawchiveから異なる投稿情報が返されました',
  'Pawchive returned invalid metadata':'Pawchiveから不正なメタデータが返されました',
  'Pawchive returned an unexpected metadata content type':'Pawchiveの応答形式が想定と異なります',
+ 'Original FANBOX link unavailable; add it manually if needed':'元FANBOXリンクを生成できませんでした。必要なら手動で追加してください',
+ 'Invalid original link candidate':'元投稿リンク候補が不正です',
+ 'Invalid original link candidates':'元投稿リンク候補の形式が不正です',
  'Failed to fetch':'接続に失敗しました。サーバーが起動しているか確認してください'
 };
 export function localizeError(message,lang){if(lang!=='ja')return message;if(messages[message])return messages[message];

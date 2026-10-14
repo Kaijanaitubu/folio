@@ -1,5 +1,7 @@
 # F-020：Pawchive投稿メタデータインポーター
 
+現在の状態：2026-10-15に[投稿Favorites出力・元投稿リンク候補](PAWCHIVE-FAVORITES-ORIGINALS-SPEC.md)を追加。以下は初期投稿インポーターの範囲。
+
 実装日：2026-10-14。ユーザーの今回の承認範囲は投稿メタデータの取り込み。元投稿リンクの探索・保存と、PawchiveのFavorites取得は保留。[先行調査](PAWCHIVE-RESEARCH.md)と区別する。
 
 ## 対応範囲

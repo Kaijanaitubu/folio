@@ -32,11 +32,11 @@ export function createTrashSourceUI({api,modal,closeModal,dialog,$,$$,esc,t,lang
   }
   return current();
  }
- async function attach(url,target,titles,current=()=>true){
+ async function attach(url,target,titles,current=()=>true,originals=[]){
   const p=await api('trash-source/preview','POST',{url});
   if(!current())return null;
-  if(!p.works.length)return api('source-attach','POST',{url,target,source_titles:titles});
-  const work=await api('works/'+target);if(!current())return null;work.links.push({url,label:'',is_primary:false});
+  if(!p.works.length)return api('source-attach','POST',{url,target,source_titles:titles,original_links:originals});
+  const work=await api('works/'+target);if(!current())return null;work.links.push({url,label:'',is_primary:false});for(const original of originals)work.links.push({url:original.url,label:original.label,is_primary:false});
   if(!await prepare(work,target,current))return null;
   return api('works/'+target,'PUT',work);
  }

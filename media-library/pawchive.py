@@ -40,6 +40,35 @@ def comparison(value):
     # of the author path. Never equate FANBOX and Patreon IDs.
     return f'https://{HOST}/{loc[0]}/post/{loc[2]}' if loc else None
 
+def original_comparison(value):
+    try:
+        u=urlsplit(value)
+        if u.scheme not in ('http','https') or u.port not in (None,80,443) or u.username is not None or u.password is not None:return None
+        if u.hostname in ('patreon.com','www.patreon.com'):
+            m=re.fullmatch(r'/(?:[a-zA-Z0-9_-]+/)?posts/(?:[a-zA-Z0-9_-]+-)?('+ID+r')/?',u.path)
+            if m:return 'https://www.patreon.com/posts/'+m[1]
+        if u.hostname in ('fanbox.cc','www.fanbox.cc'):
+            m=re.fullmatch(r'/@[a-zA-Z0-9_-]{1,64}/posts/('+ID+r')/?',u.path)
+        elif re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fanbox\.cc',u.hostname or ''):
+            m=re.fullmatch(r'/posts/('+ID+r')/?',u.path)
+        else:m=None
+        if m:return 'https://www.fanbox.cc/posts/'+m[1]
+    except (ValueError,TypeError):pass
+    return None
+
+def original_label(value):
+    key=original_comparison(value)
+    return 'Patreon' if key and 'patreon.com/' in key else 'FANBOX' if key else ''
+
+def original_candidates(service,creator,post,profile):
+    if service=='patreon':return [{'url':f'https://www.patreon.com/posts/{post}','label':'Patreon','verified':False}]
+    public=profile.get('public_id') if isinstance(profile,dict) and str(profile.get('id'))==creator and profile.get('service')==service else None
+    if not isinstance(public,str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}',public):return []
+    # Prefer the observed subdomain form; underscore handles use the path form.
+    if re.fullmatch(r'[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?',public):url=f'https://{public.lower()}.fanbox.cc/posts/{post}'
+    else:url=f'https://www.fanbox.cc/@{public}/posts/{post}'
+    return [{'url':url,'label':'FANBOX','verified':False}]
+
 def image_path(value):
     if not isinstance(value,str):return False
     m=re.fullmatch(FILE,value)
@@ -154,6 +183,8 @@ def parse_post(data,profile,url):
     title=data.get('title')
     if not isinstance(title,str) or not title.strip() or len(title)>4096:raise ValueError('Pawchive post has no usable title')
     out={'title':title,'source_titles':[title],'source_label':'Pawchive','cover':'','category':'','language':'','pages':None,'warnings':[],**{k:[] for k in ('author','circle','series','character','tag')}}
+    out['original_links']=original_candidates(service,creator,post,profile)
+    if not out['original_links']:out['warnings'].append('Original FANBOX link unavailable; add it manually if needed')
     name=profile.get('name') if isinstance(profile,dict) and str(profile.get('id'))==creator and profile.get('service')==service else None
     if isinstance(name,str) and name.strip() and len(name)<=4096:out['author']=[{'name':name.strip()}]
     else:out['warnings'].append('Pawchive author name unavailable; other metadata was retrieved')

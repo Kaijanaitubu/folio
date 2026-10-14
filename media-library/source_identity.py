@@ -14,6 +14,8 @@ def normalize_url(value):
     import pawchive
     pawchive_key=pawchive.comparison(value)
     if pawchive_key:return pawchive_key
+    original_key=pawchive.original_comparison(value)
+    if original_key:return original_key
     import stores
     store_key=stores.comparison(value)
     if store_key:return store_key
