@@ -24,6 +24,7 @@ import import_matching
 import tag_policy
 import marks
 import trash_sources
+import work_merge
 from search import CATEGORIES
 
 TOKEN=secrets.token_urlsafe(32)
@@ -206,6 +207,8 @@ class Handler(BaseHTTPRequestHandler):
                     if ident: result=db.get_work(c,ident)
                     elif g('ids')=='1': result={'ids':features.batch_targets(c,{'all':True,'query':g('q')})}
                     else: result=db.list_works(c,g('q'),g('sort','newest'),max(0,int(g('offset','0'))),min(100,max(1,int(g('limit','40')))),g('seed','0'),g('random')=='1')
+                elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='merge-preview': result=work_merge.preview(c,ident,data.get('target'))
+                elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='merge-links': result=work_merge.apply(c,ident,data.get('target'),data.get('signature'))
                 elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='marks': result=marks.toggle(c,ident,data)
                 elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='open': result=db.get_work(c,ident,True)
                 elif self.command in ('POST','PUT'):
