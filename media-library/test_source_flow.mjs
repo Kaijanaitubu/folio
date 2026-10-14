@@ -4,7 +4,8 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 const load=async name=>import('data:text/javascript;base64,'+Buffer.from(readFileSync(new URL('static/'+name,import.meta.url),'utf8')).toString('base64'));
 const {bookmarklet}=await load('source-link.js');
-const {isStoreSource}=await load('store-sources.js');
+const {isStoreSource,isDLsitePlaySeries}=await load('store-sources.js');
+const {isPawchiveSource}=await load('pawchive-sources.js');
 const {en,ja}=await load('i18n.js');
 const {applyImported,metadataKinds,sameMetadataSet,hasImportedChanges}=await load('import-policy.js');
 const target='http://192.168.0.140:8765';
@@ -14,7 +15,7 @@ const location={hostname:'hitomi.la',href:source};
 vm.runInNewContext(script.slice(11),{location,alert:()=>assert.fail('unexpected alert')});
 assert.equal(new URLSearchParams(location.href.split('?')[1]).get('url'),source);
 assert.ok(location.href.startsWith(target+'/#/source?url='));
-for(const host of ['momon-ga.com','www.momon-ga.com','www.dlsite.com','play.dlsite.com','dlsharing.com','www.dmm.co.jp','book.dmm.com','book.dmm.co.jp']){
+for(const host of ['pawchive.pw','www.pawchive.pw','momon-ga.com','www.momon-ga.com','www.dlsite.com','play.dlsite.com','dlsharing.com','www.dmm.co.jp','book.dmm.com','book.dmm.co.jp']){
  const sourceURL='https://'+host+'/fanzine/mo123/';
  const momongaLocation={hostname:host,href:sourceURL};
  vm.runInNewContext(script.slice(11),{location:momongaLocation,alert:()=>assert.fail('unexpected momon-ga rejection')});
@@ -34,7 +35,7 @@ const importCode=app.slice(app.indexOf('async function interactiveImport('),app.
 const fixture={title:'Imported fixture',cover:'',category:'manga',language:'Japanese',pages:10,author:[{name:'QA Author'}],circle:[],tag:[],series:[],character:[],warnings:[],ambiguities:[]};
 function setup(match,matches){
  const calls=[],nodes={},buttons=matches.map(w=>({dataset:{sourceWork:w.id}}));
- const context={isStoreSource,routeVersion:1,draft:null,baseline:'',location:{hash:''},previousHash:'',
+ const context={isStoreSource,isDLsitePlaySeries,isPawchiveSource,routeVersion:1,draft:null,baseline:'',location:{hash:''},previousHash:'',
   route:()=>({params:new URLSearchParams({url:source})}),
   api:async(path,method,body)=>{calls.push({path,method,body});return path==='source-check'?{url:source,match,matches}:structuredClone(fixture)},
   blank:()=>({title:'',cover:'',category:'',language:'',pages:null,author:[],circle:[],tag:[],series:[],character:[],links:[],ratings:{}}),
@@ -80,3 +81,20 @@ for(const choice of ['existing','cancel','new']){
  assert.equal(context.draft,replacement);assert.equal(context.draft.title,'');
 }
 console.log('Source-flow checks passed: exact lookup, related-page choices, unsaved import, URL preservation, and stale-import protection.');
+
+for(const value of ['https://pawchive.pw/fanbox/user/123/post/456','http://www.pawchive.pw/patreon/post/456/?tracking=1'])assert.ok(isPawchiveSource(value));
+for(const value of ['https://pawchive.pw/fanbox/user/123','https://pawchive.pw/discord/user/123/post/456','https://pawchive.pw.evil/fanbox/post/456','https://u:p@pawchive.pw/fanbox/post/456','https://pawchive.pw:444/fanbox/post/456'])assert.equal(isPawchiveSource(value),false);
+{
+ const {context,calls}=setup('none',[]);
+ const paw='https://pawchive.pw/fanbox/user/123/post/456';
+ context.route=()=>({params:new URLSearchParams({url:paw})});
+ const api=context.api;context.api=async(...args)=>{const result=await api(...args);return args[0]==='source-check'?{...result,url:paw}:result};
+ await context.openSource(1);
+ assert.equal(context.draft.links[0].url,paw);assert.equal(calls[1].body.url,paw);
+ assert.ok(calls.every(c=>c.path!=='works'));
+ const start=app.indexOf('function importerSourceURL(');
+ vm.runInContext(app.slice(start,app.indexOf('\n',start)),context);
+ assert.ok(context.importerSourceURL(paw));
+ assert.equal(context.importerSourceURL('https://pawchive.pw/favorites'),false);
+}
+console.log('Pawchive source-flow checks passed');

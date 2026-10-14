@@ -99,10 +99,19 @@ const messages={
  'Use a Hitomi work or reader URL':'Hitomiの作品ページまたはリーダーのURLを指定してください',
  'Source URL is too long':'ソースURLが長すぎます',
  'This title already exists; change it before saving':'このタイトルは登録済みです。保存する前にタイトルを変更してください',
+ 'Use a Pawchive FANBOX or Patreon post URL':'PawchiveのFANBOXまたはPatreonの投稿URLを指定してください',
+ 'Pawchive short link could not be resolved; use the full post URL':'Pawchiveの短縮リンクを解決できません。作者IDを含む投稿URLを指定してください',
+ 'Pawchive post has no usable title':'Pawchiveの投稿タイトルを取得できませんでした',
+ 'Pawchive author name unavailable; other metadata was retrieved':'Pawchiveの作者名を取得できませんでした。他の情報は取得できました',
+ 'Pawchive tags could not be read; other metadata was retrieved':'Pawchiveのタグを読み取れませんでした。他の情報は取得できました',
+ 'Pawchive source could not be reached; try again later':'Pawchiveに接続できませんでした。時間をおいて再試行してください',
+ 'Pawchive returned a different post':'Pawchiveから異なる投稿情報が返されました',
+ 'Pawchive returned invalid metadata':'Pawchiveから不正なメタデータが返されました',
+ 'Pawchive returned an unexpected metadata content type':'Pawchiveの応答形式が想定と異なります',
  'Failed to fetch':'接続に失敗しました。サーバーが起動しているか確認してください'
 };
 export function localizeError(message,lang){if(lang!=='ja')return message;if(messages[message])return messages[message];
- const prefixes={'Duplicate title; import skipped: ':'タイトルが重複しているため取込を中止しました：','Ambiguous alias: ':'別名の候補が複数あります：','Unknown search field: ':'不明な検索フィールド：','Unknown rating dimension: ':'不明な評価軸：','Metadata source returned HTTP ':'取得先のHTTP応答：'};
+ const prefixes={'Pawchive source returned HTTP ':'PawchiveのHTTP応答：','Duplicate title; import skipped: ':'タイトルが重複しているため取込を中止しました：','Ambiguous alias: ':'別名の候補が複数あります：','Unknown search field: ':'不明な検索フィールド：','Unknown rating dimension: ':'不明な評価軸：','Metadata source returned HTTP ':'取得先のHTTP応答：'};
  for(const [prefix,jp] of Object.entries(prefixes))if(message.startsWith(prefix))return jp+message.slice(prefix.length).replace('; use rating1, rating2, …','。rating1、rating2などを使用してください');
  if(/^rating\d+ expects 1–\d+$/.test(message))return message.replace(' expects ','の範囲は')+'です';
  return message;

@@ -114,7 +114,7 @@ def attach(c,wid,value,titles=()):
     # Do not turn a new secondary source into the primary source, even on a linkless work.
     provider=importer.source_identity(value)
     import stores
-    label=stores.label(value) or {'nhentai':'nhentai','hitomi':'Hitomi','momonga':'momon-ga'}.get(provider[0] if provider else '', '')
+    label=stores.label(value) or {'nhentai':'nhentai','hitomi':'Hitomi','momonga':'momon-ga','pawchive':'Pawchive'}.get(provider[0] if provider else '', '')
     c.execute('INSERT INTO links VALUES(?,?,?,?,?,?,?)',(db.uid(),wid,db.url(value),label,position,0,db.normalize_url(value)))
     c.execute('INSERT INTO source_claims VALUES(?,?,?)',(db.OWNER,db.normalize_url(value),wid))
     c.execute('UPDATE works SET updated=? WHERE id=?',(db.now(),wid))

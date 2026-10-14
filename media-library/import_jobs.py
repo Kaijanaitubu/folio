@@ -8,6 +8,7 @@ import tag_policy
 import nhentai
 import momonga
 import stores
+import pawchive
 import nhentai_credentials as credentials
 import import_matching as matching
 
@@ -73,6 +74,17 @@ def init(c):
             if work:c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
         c.execute('INSERT OR IGNORE INTO migrations VALUES(10,?)',(db.now(),))
         c.execute('INSERT OR IGNORE INTO migrations VALUES(11,?)',(db.now(),))
+    if not c.execute('SELECT 1 FROM migrations WHERE version=12').fetchone():
+        affected=set()
+        for row in c.execute('SELECT l.id,l.url,l.url_key,w.owner FROM links l JOIN works w ON w.id=l.work_id').fetchall():
+            if not pawchive.location(row['url']):continue
+            normalized=db.normalize_url(row['url']);affected.update(((row['owner'],row['url_key']),(row['owner'],normalized)))
+            c.execute('UPDATE links SET url_key=? WHERE id=?',(normalized,row['id']))
+        for owner,value in affected:
+            c.execute('DELETE FROM source_claims WHERE owner=? AND url_key=?',(owner,value))
+            work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
+            if work:c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
+        c.execute('INSERT INTO migrations VALUES(12,?)',(db.now(),))
 
 def default_tag_mode(c):
     row=c.execute('SELECT tag_mode FROM import_settings WHERE owner=?',(db.OWNER,)).fetchone()
@@ -163,15 +175,17 @@ def process_item(item):
     token=nhentai.CANCEL.set(lambda:stopped(item['job_id']))
     momonga_token=momonga.CANCEL.set(lambda:stopped(item['job_id']))
     store_token=stores.CANCEL.set(lambda:stopped(item['job_id']))
+    pawchive_token=pawchive.CANCEL.set(lambda:stopped(item['job_id']))
     try: data=importer.import_url(item['url'])
     finally:
         nhentai.CANCEL.reset(token)
         momonga.CANCEL.reset(momonga_token)
         stores.CANCEL.reset(store_token)
+        pawchive.CANCEL.reset(pawchive_token)
     source_title=str(data.get('title') or '').strip(); bookmark=str(item.get('label') or '').strip()
     title=(bookmark or source_title) if current['title_mode']=='bookmark' else (source_title or bookmark)
     if not title: raise ValueError('No title retrieved; retry or add manually')
-    data.update(title=title,_source_title=source_title,links=[{'url':item['url'],'label':stores.label(item['url']),'is_primary':True}])
+    data.update(title=title,_source_title=source_title,links=[{'url':item['url'],'label':data.get('source_label') or stores.label(item['url']),'is_primary':True}])
     data['source_titles']=list(dict.fromkeys([source_title,*data.get('source_titles',[])]))
     with db.transaction() as c:
         c.execute('BEGIN IMMEDIATE'); current=job(c,item['job_id'])
