@@ -54,6 +54,7 @@ def comparison(value):
 def label(value):
     loc=location(value)
     if not loc:return ''
+    if loc[0]=='dlsite' and urlsplit(value).hostname=='play.dlsite.com':return 'DLsite Play'
     return 'DLsite' if loc[0]=='dlsite' else 'FANZA同人' if loc[0]=='fanza-doujin' else 'FANZAブックス' if urlsplit(value).hostname=='book.dmm.co.jp' else 'DMMブックス'
 
 def valid_image(value):
