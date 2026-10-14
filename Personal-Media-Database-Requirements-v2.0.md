@@ -66,7 +66,7 @@ An entry is a library record created by the user manually or through import. The
 - All source links participate in owner-scoped normalized URL comparison. Reject new duplicate URLs atomically, excluding the edited work's existing links. Preserve legacy collisions without automatic merging or deletion.
 - Individual imports show same-title entries with authors and primary URLs before proceeding. Batches add same-title entries and summarize warnings afterward.
 - Different pages of a Hitomi gallery warn but can register separately. Do not automatically match or update works based on title or gallery ID.
-- [F-002/F-003/F-013 implementation specification](media-library/IMPORT-SPEC.md) defines normalization, legacy migration and API contracts.
+- [F-002/F-003/F-013 implementation specification](media-library/documents/IMPORT-SPEC.md) defines normalization, legacy migration and API contracts.
 
 ## 4. Work fields
 
@@ -143,7 +143,7 @@ Merging is explicit and atomic: reassign associations to the survivor, deduplica
 
 Series and characters have the same reusable identity, alias, editing, navigation, and directory capabilities as authors and circles.
 
-The detailed implemented tag contract, including merge undo and job/Trash compatibility, is [TAG-SPEC.md](media-library/TAG-SPEC.md).
+The detailed implemented tag contract, including merge undo and job/Trash compatibility, is [TAG-SPEC.md](media-library/documents/TAG-SPEC.md).
 
 ### 5.5 Preferred display names, sorting, and migration
 
@@ -381,7 +381,7 @@ Fill empty scalar fields automatically; use the existing replacement checkboxes 
 
 Equal imported fields are unchanged and omitted from the replacement dialog. Compare metadata as resolved identity sets, ignoring order and duplicates but preserving tag gender. Preserve existing order/display data for equal sets. If every importable field is equal or chosen modes produce no actual changes, show No information to change and retain the draft without re-rendering.
 
-Keep all changes in the draft until Save. Cancellation, failure or stale responses leave the draft unchanged. A user-entered title is preserved unless explicitly replaced. Source URLs are not rewritten. Partial metadata is usable. See [implementation specification](media-library/IMPORT-SPEC.md).
+Keep all changes in the draft until Save. Cancellation, failure or stale responses leave the draft unchanged. A user-entered title is preserved unless explicitly replaced. Source URLs are not rewritten. Partial metadata is usable. See [implementation specification](media-library/documents/IMPORT-SPEC.md).
 
 ### 10.3 Bookmark HTML import
 
@@ -516,8 +516,8 @@ The release is complete only when the following behaviors are verified. Use focu
 
 No application feature depends on the importer succeeding. Future hosted accounts must retain existing ownership boundaries, permanent rating numbers, user-editable data, and source-independent work identities.
 
-**Import identity amendment — 2026-10-12:** F-002/F-003/F-013 are approved and implemented. Migration 3 removes work-title uniqueness, adds normalized source identity and bookmark provenance, and preserves existing data. The separate [implementation specification](media-library/IMPORT-SPEC.md) is authoritative for these features.
+**Import identity amendment — 2026-10-12:** F-002/F-003/F-013 are approved and implemented. Migration 3 removes work-title uniqueness, adds normalized source identity and bookmark provenance, and preserves existing data. The separate [implementation specification](media-library/documents/IMPORT-SPEC.md) is authoritative for these features.
 
 ## 2026-10-12 Personal-library feature extension
 
-F-006–F-009 and F-012 were approved for implementation. The authoritative extension is [FEATURES-SPEC.md](media-library/FEATURES-SPEC.md): 30-day Trash/history, safe undo and exact rating-conversion recovery, server-persisted named searches, previewed atomic batch editing, transient cover previews and installed-PWA shared-link entry over private HTTPS. Browser/OS share registration requires real-device verification; this does not provide operation while the hosting PC is off.
+F-006–F-009 and F-012 were approved for implementation. The authoritative extension is [FEATURES-SPEC.md](media-library/documents/FEATURES-SPEC.md): 30-day Trash/history, safe undo and exact rating-conversion recovery, server-persisted named searches, previewed atomic batch editing, transient cover previews and installed-PWA shared-link entry over private HTTPS. Browser/OS share registration requires real-device verification; this does not provide operation while the hosting PC is off.

@@ -12,7 +12,7 @@ Bookmarklet address/copy settings and the source URL opener are on Imports. Typi
 
 ## Start on this PC
 
-Open PowerShell in this directory and run:
+Open PowerShell in the application's `media-library` directory (the parent of this `documents` directory) and run the command below. Use that directory for all application and test commands in this guide.
 
 ```powershell
 .\start.ps1
@@ -103,7 +103,7 @@ On a Hitomi work/reader page, run this bookmark. Android Chromium browsers may r
 
 The bookmark only navigates to Folio. It does not inspect your library from Hitomi, send page contents, or require an extension, CORS access, or a public server. The Folio PC must be running and reachable on your LAN. `/#/source?url=ENCODED_URL` is the incoming route; source checking itself never fetches remote data or modifies works.
 
-To check the source-flow logic without a browser (optional Node.js requirement), run `node test_source_flow.mjs` from this directory. These tests do not replace testing the saved bookmark on your phone.
+To check the source-flow logic without a browser (optional Node.js requirement), run `node test_source_flow.mjs` from the `media-library` directory. These tests do not replace testing the saved bookmark on your phone.
 
 ### Editing and bookmark imports
 
