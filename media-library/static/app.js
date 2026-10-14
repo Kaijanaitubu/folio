@@ -12,6 +12,7 @@ import {bookmarklet} from './source-link.js';
 import {pageTitle} from './page-title.js';
 import {createTrashSourceUI} from './trash-source-ui.js';
 import {createCardSources} from './card-sources.js';
+import {isStoreSource,isStoreCover} from './store-sources.js';
 Object.assign(en,featureEn,nhentaiEn,tagEn,markEn);Object.assign(ja,featureJa,nhentaiJa,tagJa,markJa);
 const $=(s,root=document)=>root.querySelector(s), $$=(s,root=document)=>[...root.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -98,7 +99,7 @@ function closeModal(){dialog.close();dialog.innerHTML=''}
 async function confirm(title,text,action=t('delete')){return new Promise(resolve=>{modal(`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="actions">${btn(t('cancel'),'confirm-no')}${btn(action,'confirm-yes','primary')}</div>`);$('#confirm-no').onclick=()=>{closeModal();resolve(false)};$('#confirm-yes').onclick=()=>{closeModal();resolve(true)};dialog.oncancel=()=>resolve(false)})}
 const tagUI=createTagUI({$, $$, api, t, esc, btn, modal, closeModal, dialog, error, markLibraryDirty, displayName});
 const nhentaiUI=createNhentaiUI({reviewTags:tagUI.reviewTags, $, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty});
-const relayCover=url=>/^https?:\/\/(?:[ab]?tn)\.(?:hitomi\.la|gold-usergeneratedcontent\.net)\//.test(url)||/^https:\/\/t[1234]?\.nhentai\.net\//.test(url)||/^https:\/\/z[23]\.momon-ga\.me\/galleries\//.test(url);
+const relayCover=url=>isStoreCover(url)||/^https?:\/\/(?:[ab]?tn)\.(?:hitomi\.la|gold-usergeneratedcontent\.net)\//.test(url)||/^https:\/\/t[1234]?\.nhentai\.net\//.test(url)||/^https:\/\/z[23]\.momon-ga\.me\/galleries\//.test(url);
 const field=(key,value='',type='text',extra='')=>`<label><span>${esc(t(key))}</span><input data-field="${key}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 function blank(){return {title:'',cover:'',category:'',language:'',pages:null,review:'',bought:false,marks:[],author:[],circle:[],tag:[],series:[],character:[],links:[],ratings:{}}}
 function scoreEditor(d){const n=draft.ratings[d.id]||0;return `<div><span class="field-title">${d.number}. ${esc(d.name)} <small>(${d.maximum})</small></span><div class="score-editor">${Array.from({length:d.maximum},(_,i)=>`<button type="button" data-score="${d.id}:${i+1}" class="${i<n?'on':''}" aria-label="${esc(d.name)} ${i+1}/${d.maximum}">${symbols[d.symbol][i<n?0:1]}</button>`).join('')}<button type="button" class="clear-score" data-score="${d.id}:0">${esc(t('clearRating'))}</button><small>${n?`${n}/${d.maximum}`:esc(t('unrated'))}</small></div></div>`}
@@ -234,6 +235,7 @@ async function interactiveImport(id,sourceDraft=false){
   const updated=applyImported(draft,incoming,choices.replacements,choices.modes);
   if(!hasImportedChanges(draft,updated)){toast(t('importNoChanges'));return}
   Object.assign(draft,updated);
+  if(incoming.source_label&&!link.label?.trim())link.label=incoming.source_label;
   draft.source_titles=[...new Set([...(draft.source_titles||[]),...(incoming.source_titles||[])])];
   toast(t('importDone')+(incoming.warnings?.length?' · '+incoming.warnings.map(w=>localizeError(w,lang)).join('; '):''));edit(id,true);
  }catch(e){
@@ -439,7 +441,7 @@ async function showTrashedSource(matches,value){
  history.replaceState(null,'','#/new');previousHash=location.hash;await edit(null,true);
  if(importerSourceURL(value))await interactiveImport(null,true);
 }
-function importerSourceURL(value){return /^https?:\/\/(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)}
+function importerSourceURL(value){return isStoreSource(value)||/^https?:\/\/(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)}
 
 const mergeLabel=e=>displayName(e)+(e.gender&&e.gender!=='neutral'?' · '+t(e.gender):'');
 async function historyPage(){
@@ -510,7 +512,7 @@ async function sharedPage(version){
  await openSharedUrl(urls[0],version);
 }
 async function openSharedUrl(value,version){
- if(/^(https?:\/\/)(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)){nav('/source?'+new URLSearchParams({url:value}));return}
+ if(importerSourceURL(value)){nav('/source?'+new URLSearchParams({url:value}));return}
  const lookup=await api('source-check','POST',{url:value,generic:true});if(version!==routeVersion)return;
  if(lookup.matches.length){if(lookup.matches.every(w=>w.deleted_at)){await showTrashedSource(lookup.matches,value);return}nav('/work/'+lookup.matches.find(w=>!w.deleted_at).id);return}
  draft=blank();baseline=JSON.stringify(draft);draft.links=[{url:value,label:'',is_primary:true}];history.replaceState(null,'','#/new');previousHash=location.hash;await edit(null,true);toast(t('sharedManual'));

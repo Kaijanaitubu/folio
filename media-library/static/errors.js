@@ -1,4 +1,8 @@
 const messages={
+ 'This importer supports comic products only':'このインポーターは漫画の商品ページに対応しています',
+ 'Unexpected store redirect; login or challenge may be required':'販売サイトが別の画面へ転送しました。ログインやアクセス確認が必要な可能性があります',
+ 'Store page has no product title; login or source format change may be responsible':'商品名を取得できませんでした。ログイン要求やページ構造の変更の可能性があります',
+ 'Store age confirmation format changed':'販売サイトの年齢確認画面の形式が変わっています',
  'Selected entries changed; reload before deleting':'選択した作品が削除・変更されています。再読み込みしてから削除してください',
  'Choose mark numbers 1–5':'マーク番号は1〜5で指定してください',
  'Enter five mark labels, up to 80 characters each':'5個のラベルをそれぞれ80文字以内で入力してください',

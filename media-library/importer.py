@@ -121,6 +121,9 @@ def parse_gallery(text,cover_page=1):
     return out
 
 def source_identity(url):
+    import stores
+    parsed=stores.location(url)
+    if parsed:return parsed[:2]
     import nhentai
     import momonga
     parsed=momonga.location(url)
@@ -135,6 +138,8 @@ def source_identity(url):
     return ('hitomi',gid) if gid else None
 
 def import_url(url):
+    import stores
+    if stores.location(url):return stores.import_url(url)
     import nhentai
     import momonga
     if momonga.location(url): return momonga.import_url(url)
@@ -156,7 +161,7 @@ def import_url(url):
 
 def attribute_less_source(url):
     identity=source_identity(url)
-    return bool(identity and identity[0] in ('nhentai','momonga'))
+    return bool(identity and identity[0] in ('nhentai','momonga','dlsite','fanza-doujin','dmm-books'))
 
 class Bookmarks(HTMLParser):
     def __init__(self):

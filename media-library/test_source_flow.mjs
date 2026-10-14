@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 const load=async name=>import('data:text/javascript;base64,'+Buffer.from(readFileSync(new URL('static/'+name,import.meta.url),'utf8')).toString('base64'));
 const {bookmarklet}=await load('source-link.js');
+const {isStoreSource}=await load('store-sources.js');
 const {en,ja}=await load('i18n.js');
 const {applyImported,metadataKinds,sameMetadataSet,hasImportedChanges}=await load('import-policy.js');
 const target='http://192.168.0.140:8765';
@@ -13,7 +14,7 @@ const location={hostname:'hitomi.la',href:source};
 vm.runInNewContext(script.slice(11),{location,alert:()=>assert.fail('unexpected alert')});
 assert.equal(new URLSearchParams(location.href.split('?')[1]).get('url'),source);
 assert.ok(location.href.startsWith(target+'/#/source?url='));
-for(const host of ['momon-ga.com','www.momon-ga.com']){
+for(const host of ['momon-ga.com','www.momon-ga.com','www.dlsite.com','dlsharing.com','www.dmm.co.jp','book.dmm.com','book.dmm.co.jp']){
  const sourceURL='https://'+host+'/fanzine/mo123/';
  const momongaLocation={hostname:host,href:sourceURL};
  vm.runInNewContext(script.slice(11),{location:momongaLocation,alert:()=>assert.fail('unexpected momon-ga rejection')});
@@ -31,7 +32,7 @@ const importCode=app.slice(app.indexOf('async function interactiveImport('),app.
 const fixture={title:'Imported fixture',cover:'',category:'manga',language:'Japanese',pages:10,author:[{name:'QA Author'}],circle:[],tag:[],series:[],character:[],warnings:[],ambiguities:[]};
 function setup(match,matches){
  const calls=[],nodes={},buttons=matches.map(w=>({dataset:{sourceWork:w.id}}));
- const context={routeVersion:1,draft:null,baseline:'',location:{hash:''},previousHash:'',
+ const context={isStoreSource,routeVersion:1,draft:null,baseline:'',location:{hash:''},previousHash:'',
   route:()=>({params:new URLSearchParams({url:source})}),
   api:async(path,method,body)=>{calls.push({path,method,body});return path==='source-check'?{url:source,match,matches}:structuredClone(fixture)},
   blank:()=>({title:'',cover:'',category:'',language:'',pages:null,author:[],circle:[],tag:[],series:[],character:[],links:[],ratings:{}}),
