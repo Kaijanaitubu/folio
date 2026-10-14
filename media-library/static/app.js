@@ -12,7 +12,7 @@ import {bookmarklet} from './source-link.js';
 import {pageTitle} from './page-title.js';
 import {createTrashSourceUI} from './trash-source-ui.js';
 import {createCardSources} from './card-sources.js';
-import {isStoreSource,isStoreCover} from './store-sources.js';
+import {isStoreSource,isStoreCover,isDLsitePlaySeries} from './store-sources.js';
 Object.assign(en,featureEn,nhentaiEn,tagEn,markEn);Object.assign(ja,featureJa,nhentaiJa,tagJa,markJa);
 const $=(s,root=document)=>root.querySelector(s), $$=(s,root=document)=>[...root.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -441,7 +441,7 @@ async function showTrashedSource(matches,value){
  history.replaceState(null,'','#/new');previousHash=location.hash;await edit(null,true);
  if(importerSourceURL(value))await interactiveImport(null,true);
 }
-function importerSourceURL(value){return isStoreSource(value)||/^https?:\/\/(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)}
+function importerSourceURL(value){return isStoreSource(value)||isDLsitePlaySeries(value)||/^https?:\/\/(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)}
 
 const mergeLabel=e=>displayName(e)+(e.gender&&e.gender!=='neutral'?' · '+t(e.gender):'');
 async function historyPage(){

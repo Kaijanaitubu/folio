@@ -139,6 +139,7 @@ def source_identity(url):
 
 def import_url(url):
     import stores
+    if stores.play_series(url):raise ValueError('DLsite Play series links are not supported; use an individual /work/RJ or /work/BJ link')
     if stores.location(url):return stores.import_url(url)
     import nhentai
     import momonga

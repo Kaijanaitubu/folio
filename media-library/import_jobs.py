@@ -61,7 +61,7 @@ def init(c):
             work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
             if work: c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
         c.execute('INSERT INTO migrations VALUES(9,?)',(db.now(),))
-    if not c.execute('SELECT 1 FROM migrations WHERE version=10').fetchone():
+    if not c.execute('SELECT 1 FROM migrations WHERE version=10').fetchone() or not c.execute('SELECT 1 FROM migrations WHERE version=11').fetchone():
         affected=set()
         for row in c.execute('SELECT l.id,l.url,l.url_key,w.owner FROM links l JOIN works w ON w.id=l.work_id').fetchall():
             if not stores.location(row['url']):continue
@@ -71,7 +71,8 @@ def init(c):
             c.execute('DELETE FROM source_claims WHERE owner=? AND url_key=?',(owner,value))
             work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
             if work:c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
-        c.execute('INSERT INTO migrations VALUES(10,?)',(db.now(),))
+        c.execute('INSERT OR IGNORE INTO migrations VALUES(10,?)',(db.now(),))
+        c.execute('INSERT OR IGNORE INTO migrations VALUES(11,?)',(db.now(),))
 
 def default_tag_mode(c):
     row=c.execute('SELECT tag_mode FROM import_settings WHERE owner=?',(db.OWNER,)).fetchone()

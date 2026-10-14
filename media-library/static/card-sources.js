@@ -2,7 +2,7 @@
 export function createCardSources({esc,t,modal,closeModal,$}){
  const valid=work=>(work.links||[]).filter(link=>{try{return ['http:','https:'].includes(new URL(link.url).protocol)}catch{return false}});
  const host=link=>new URL(link.url).hostname.replace(/^www\./i,'');
- const name=link=>link.label?.trim()||({'hitomi.la':'Hitomi','nhentai.net':'nhentai','momon-ga.com':'momon-ga','dlsite.com':'DLsite','dlsharing.com':'DLsite','dmm.co.jp':'FANZA同人','book.dmm.co.jp':'FANZAブックス','book.dmm.com':'DMMブックス'}[host(link)]||host(link));
+ const name=link=>link.label?.trim()||({'hitomi.la':'Hitomi','nhentai.net':'nhentai','momon-ga.com':'momon-ga','dlsite.com':'DLsite','play.dlsite.com':'DLsite','dlsharing.com':'DLsite','dmm.co.jp':'FANZA同人','book.dmm.co.jp':'FANZAブックス','book.dmm.com':'DMMブックス'}[host(link)]||host(link));
  function button(work){
   const links=valid(work);if(!links.length)return '';
   const primary=links.find(link=>link.is_primary)||links[0],extra=links.length-1;

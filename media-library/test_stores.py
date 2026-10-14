@@ -30,6 +30,42 @@ BOOK_HTML='''<h1>Commercial title</h1><dl><dt>カテゴリー</dt><dd>漫画</dd
 <meta property="og:image" content="https://ebook-assets.dmm.co.jp/digital/e-book/book123/book123pl.jpg">'''
 
 class AdapterTests(unittest.TestCase):
+    def test_play_identity_and_query_slash_variants(self):
+        play='https://play.dlsite.com/work/RJ01097714?utm=x#sample'
+        self.assertEqual(stores.canonical(play),stores.canonical(DL))
+        self.assertEqual(db.normalize_url(play),db.normalize_url(DL+'/?utm_source=dlsite_play'))
+        self.assertEqual(stores.canonical('https://play.dlsite.com/work/BJ151862/'),'https://www.dlsite.com/books/work/=/product_id/BJ151862.html')
+        items=importer.bookmarks('<a href="'+play+'">Play</a><a href="'+DL+'/">Store</a>')
+        self.assertTrue(items[0]['supported']);self.assertTrue(items[1]['duplicate'])
+        for bad in ('https://play.dlsite.com/series/TITLE00053978','https://play.dlsite.com/work/TITLE00053978','https://play.dlsite.com/work/VJ01097714','https://www.play.dlsite.com/work/RJ01097714',play.replace('play.dlsite.com','play.dlsite.com.evil'),play.replace('https://','https://u:p@'),play.replace('play.dlsite.com','play.dlsite.com:444')):
+            self.assertIsNone(stores.location(bad),bad)
+        with self.assertRaisesRegex(ValueError,'series links'):importer.import_url('https://play.dlsite.com/series/TITLE00053978')
+    def test_fetch_strips_query_fragment_and_trailing_html_slash(self):
+        for value,html in ((DL+'/?utm=x#foo',DL_HTML),(FANZA+'?utm=x#foo',FANZA_HTML),(BOOK+'?utm=x#foo',BOOK_HTML)):
+            with patch('stores.request',return_value=(200,[],'text/html',html.encode())) as request,patch.dict(stores._next,clear=True):
+                stores.import_url(value)
+                request.assert_called_once()
+                target=request.call_args.args[0]
+                self.assertEqual(target,stores.canonical(value));self.assertNotIn('?',target);self.assertNotIn('#',target)
+    def test_play_fetch_regular_page_fallback_and_same_product_redirect(self):
+        play='https://play.dlsite.com/work/RJ01097714'
+        home=stores.canonical(DL).replace('/maniax/','/home/')
+        with patch('stores._fetch',side_effect=[stores.StoreHTTPError(404),DL_HTML]) as fetch:
+            self.assertEqual(stores.import_url(play)['title'],'作品 & 第2巻')
+            self.assertEqual([x.args[0] for x in fetch.call_args_list],[stores.canonical(DL),home])
+        with patch('stores._fetch',side_effect=stores.StoreHTTPError(403)) as fetch:
+            with self.assertRaisesRegex(ValueError,'HTTP 403'):stores.fetch(play)
+            self.assertEqual(fetch.call_count,1)
+        with patch('stores._fetch',side_effect=stores.StoreHTTPError(404)) as fetch:
+            with self.assertRaisesRegex(ValueError,'page unavailable'):stores.fetch(play)
+            self.assertEqual(fetch.call_count,3)
+        redirect=home.replace('/home/','/home-touch/')+'/?utm=x'
+        with patch('stores.request',side_effect=[(302,[('Location',redirect)],'',b''),(200,[],'text/html',DL_HTML.encode())]) as request,patch.dict(stores._next,clear=True):
+            self.assertEqual(stores.fetch(play),DL_HTML)
+            self.assertEqual(request.call_args.args[0],home)
+        for target in (home.replace('01097714','01097715'),'https://evil.test/',play,'https://login.dlsite.com/'):
+            with patch('stores.request',return_value=(302,[('Location',target)],'',b'')),patch.dict(stores._next,clear=True):
+                with self.assertRaisesRegex(ValueError,'redirect'):stores.fetch(play)
     def test_shared_touch_identity_and_boundaries(self):
         self.assertEqual(importer.source_identity(DL),('dlsite','RJ01097714'))
         self.assertEqual(db.normalize_url(DL+'?utm=x#sample'),db.normalize_url(stores.canonical(DL)))
@@ -47,6 +83,10 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(d['circle'],[]);self.assertEqual(d['category'],'manga');self.assertIn({'name':'Do not import'},d['author'])
         with self.assertRaises(ValueError):stores.parse_page(DL_HTML.replace('マンガ','ASMR'),DL)
         with self.assertRaises(ValueError):stores.parse_page('<h1>Access challenge</h1>',DL)
+        d=stores.parse_page(DL_HTML.replace('マンガ','CG・イラスト'),DL)
+        self.assertEqual(d['category'],'artist cg');self.assertEqual(d['circle'],[{'name':'Circle'}])
+        self.assertEqual(len(d['author']),2);self.assertEqual(len(d['tag']),2)
+        with self.assertRaises(ValueError):stores.parse_page(FANZA_HTML.replace('コミック','CG・イラスト'),FANZA)
     def test_fanza_scope_and_book_jsonld(self):
         d=stores.parse_page(FANZA_HTML,FANZA);self.assertEqual(d['pages'],35);self.assertEqual(len(d['author']),2);self.assertEqual(d['circle'],[{'name':'Circle'}])
         d=stores.parse_page(BOOK_HTML,BOOK);self.assertEqual(d['pages'],228);self.assertEqual(d['author'],[{'name':'Author'}]);self.assertEqual(d['circle'],[])
@@ -82,6 +122,37 @@ class AdapterTests(unittest.TestCase):
 
 class WorkflowTests(unittest.TestCase):
     setUp=fixture.FeatureHTTPTests.setUp;tearDown=fixture.FeatureHTTPTests.tearDown;request=fixture.FeatureHTTPTests.request;api=fixture.FeatureHTTPTests.api
+    def test_play_workflow_preserves_source_and_existing_regular_url(self):
+        play='https://play.dlsite.com/work/RJ01097714?utm=x'
+        with patch('stores.fetch',return_value=DL_HTML):
+            d=self.api('import','POST',{'url':play})
+            w=self.api('works','POST',dict(d,links=[{'url':play,'is_primary':True}]))
+            self.assertEqual(w['links'][0]['url'],play)
+            self.assertEqual(self.api('source-check','POST',{'url':DL+'/?utm=x'})['matches'][0]['id'],w['id'])
+            self.assertEqual(self.request('/api/import','POST',{'url':DL})[0],409)
+        status,_,raw=self.request('/api/source-check','POST',{'url':'https://play.dlsite.com/series/TITLE00053978'})
+        self.assertEqual(status,400);self.assertIn('series links',json.loads(raw)['error'])
+    def test_play_key_migration_retains_colliding_entries(self):
+        play='https://play.dlsite.com/work/RJ01097714'
+        with db.transaction() as c:
+            a=db.save_work(c,{'title':'Store','links':[{'url':DL,'is_primary':True}]})
+            # Simulate a Play link previously saved as an unsupported manual URL.
+            b=db.save_work(c,{'title':'Play','review':'Keep'})
+            old='https://play.dlsite.com/work/RJ01097714'
+            c.execute('INSERT INTO links VALUES(?,?,?,?,?,?,?)',(db.uid(),b['id'],play,'Manual',0,1,old))
+            c.execute('INSERT INTO source_claims VALUES(?,?,?)',(db.OWNER,old,b['id']))
+            before={w['id']:db.get_work(c,w['id']) for w in (a,b)}
+            for work in before.values():
+                for link in work['links']:link.pop('url_key',None)
+            c.execute('DELETE FROM migrations WHERE version=11')
+        db.init();db.init()
+        with db.transaction() as c:
+            after={wid:db.get_work(c,wid) for wid in before}
+            for work in after.values():
+                for link in work['links']:link.pop('url_key',None)
+            self.assertEqual(after,before)
+            self.assertEqual({w['id'] for w in db.exact_sources(c,play)},set(before))
+            self.assertFalse(c.execute('SELECT 1 FROM source_claims WHERE url_key=?',(old,)).fetchone())
     def test_import_alias_duplicate_secondary_and_reimport(self):
         with patch('stores.fetch',return_value=DL_HTML):
             d=self.api('import','POST',{'url':DL});self.assertEqual(d['category'],'doujinshi')

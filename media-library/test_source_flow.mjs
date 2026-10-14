@@ -14,7 +14,7 @@ const location={hostname:'hitomi.la',href:source};
 vm.runInNewContext(script.slice(11),{location,alert:()=>assert.fail('unexpected alert')});
 assert.equal(new URLSearchParams(location.href.split('?')[1]).get('url'),source);
 assert.ok(location.href.startsWith(target+'/#/source?url='));
-for(const host of ['momon-ga.com','www.momon-ga.com','www.dlsite.com','dlsharing.com','www.dmm.co.jp','book.dmm.com','book.dmm.co.jp']){
+for(const host of ['momon-ga.com','www.momon-ga.com','www.dlsite.com','play.dlsite.com','dlsharing.com','www.dmm.co.jp','book.dmm.com','book.dmm.co.jp']){
  const sourceURL='https://'+host+'/fanzine/mo123/';
  const momongaLocation={hostname:host,href:sourceURL};
  vm.runInNewContext(script.slice(11),{location:momongaLocation,alert:()=>assert.fail('unexpected momon-ga rejection')});
@@ -26,6 +26,8 @@ let warned=false;
 const other={hostname:'evil.test',href:'https://evil.test/'};
 vm.runInNewContext(script.slice(11),{location:other,alert:()=>warned=true});
 assert.ok(warned);assert.equal(other.href,'https://evil.test/');
+for(const value of ['https://play.dlsite.com/work/RJ01654100','https://play.dlsite.com/work/BJ151862/?utm=x','https://www.dlsite.com/maniax-touch/work/=/product_id/RJ364167.html/?utm_source=dlsite_play','https://www.dmm.co.jp/dc/doujin/-/detail/=/cid=d_123/?utm=x','https://book.dmm.co.jp/product/123/book123/?utm=x'])assert.ok(isStoreSource(value),value);
+for(const value of ['https://play.dlsite.com/series/TITLE00053978','https://play.dlsite.com/work/VJ123456','https://www.play.dlsite.com/work/RJ123456','https://play.dlsite.com.evil/work/RJ123456','https://play.dlsite.com:444/work/RJ123456','https://u:p@play.dlsite.com/work/RJ123456'])assert.equal(isStoreSource(value),false,value);
 const app=readFileSync(new URL('static/app.js',import.meta.url),'utf8');
 const openCode=app.slice(app.indexOf('async function openSource('),app.indexOf('\nfunction settings('));
 const importCode=app.slice(app.indexOf('async function interactiveImport('),app.indexOf('\nlet metadataKind='));

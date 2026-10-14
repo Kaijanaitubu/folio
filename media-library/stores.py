@@ -15,8 +15,11 @@ def location(value):
     try:
         u=urlsplit(value)
         if u.scheme not in ('http','https') or u.port not in (None,80,443) or u.username or u.password:return None
+        if u.hostname=='play.dlsite.com':
+            m=re.fullmatch(r'/work/((?:RJ|BJ)[0-9]{6,12})/?',u.path,re.I)
+            if m:return ('dlsite',m[1].upper(),'books' if m[1].upper().startswith('BJ') else 'maniax')
         if u.hostname in DL_HOSTS:
-            m=re.fullmatch(r'/(home|maniax|girls|books)(?:-touch)?/work/=/product_id/((?:RJ|BJ)[0-9]{6,12})\.html',u.path,re.I)
+            m=re.fullmatch(r'/(home|maniax|girls|books)(?:-touch)?/work/=/product_id/((?:RJ|BJ)[0-9]{6,12})\.html/?',u.path,re.I)
             if m:return ('dlsite',m[2].upper(),m[1].lower())
         if u.hostname in ('www.dmm.co.jp','dmm.co.jp'):
             m=re.fullmatch(r'/dc/doujin/-/detail/=/cid=(d_[1-9][0-9]{0,11})/?',u.path)
@@ -26,6 +29,12 @@ def location(value):
             if m and m[2]!='latest':return ('dmm-books',m[2],m[1])
     except (ValueError,TypeError):pass
     return None
+
+def play_series(value):
+    try:
+        u=urlsplit(value)
+        return u.scheme in ('http','https') and u.hostname=='play.dlsite.com' and u.port in (None,80,443) and not (u.username or u.password) and bool(re.fullmatch(r'/series/TITLE[0-9]{6,12}/?',u.path))
+    except (ValueError,TypeError):return False
 
 def canonical(value):
     loc=location(value)
@@ -62,11 +71,19 @@ def age_location(value,target):
         return u.scheme=='https' and u.hostname=='www.dmm.co.jp' and not (u.username or u.password) and u.port in (None,443) and u.path in ('/age_check/=/','/age_check/=/declared=yes/','/en/age_check/=/','/en/age_check/=/declared=yes/') and q.get('rurl')==[target] and set(q)<= {'rurl','force'}
     except ValueError:return False
 
+def product_redirect(value,target):
+    # A store may change its display section, never its product ID or host.
+    if location(target) and location(target)[0]=='dlsite':
+        u=urlsplit(value)
+        loc=location(value)
+        return u.hostname=='www.dlsite.com' and u.scheme=='https' and u.port in (None,443) and loc and loc[:2]==location(target)[:2] and canonical(value)==value
+    return value==canonical(target)
+
 def request(value,target=None,image=False,cookie=''):
     u=urlsplit(value)
     if image:
         if not valid_image(value):raise ValueError('Unsupported store cover URL')
-    elif value!=canonical(target) and not age_location(value,target):raise ValueError('Unexpected store redirect')
+    elif not product_redirect(value,target) and not age_location(value,target):raise ValueError('Unexpected store redirect')
     if u.hostname not in {'www.dlsite.com','www.dmm.co.jp',*BOOK_HOSTS,*IMAGE_HOSTS}:raise ValueError('Unsupported store host')
     limit=2*1024*1024 if image else MAX_HTML;deadline=time.monotonic()+25
     addresses=socket.getaddrinfo(u.hostname,443,type=socket.SOCK_STREAM)
@@ -105,7 +122,23 @@ def request(value,target=None,image=False,cookie=''):
         if timer:timer.cancel()
         conn.close();raw.close()
 
+class StoreHTTPError(ValueError):
+    def __init__(self,status):
+        self.status=status
+        super().__init__(f'Store metadata returned HTTP {status}')
+
 def fetch(value):
+    target=canonical(value)
+    if urlsplit(value).hostname!='play.dlsite.com':return _fetch(target)
+    kind,pid,section=location(value)
+    sections=[section]+(['home','girls'] if pid.startswith('RJ') else [])
+    for section in sections:
+        try:return _fetch(f'https://www.dlsite.com/{section}/work/=/product_id/{pid}.html')
+        except StoreHTTPError as e:
+            if e.status not in (404,410):raise
+    raise ValueError('DLsite product page unavailable; enter metadata manually or use another source')
+
+def _fetch(value):
     global _age_cookie
     target=canonical(value);provider=location(value)[0]
     with _lock:
@@ -123,9 +156,10 @@ def fetch(value):
                 if 'age_check_done' in jar:_age_cookie=jar['age_check_done'].value
         if status in (301,302,303,307,308):
             dest=urljoin(current,next((v for k,v in headers if k.lower()=='location'),''))
-            if dest!=target and not age_location(dest,target):raise ValueError('Unexpected store redirect; login or challenge may be required')
+            if provider=='dlsite' and urlsplit(dest).hostname in DL_HOSTS and location(dest) and location(dest)[:2]==location(target)[:2]:dest=canonical(dest)
+            if not product_redirect(dest,target) and not age_location(dest,target):raise ValueError('Unexpected store redirect; login or challenge may be required')
             current=dest;continue
-        if status!=200:raise ValueError(f'Store metadata returned HTTP {status}')
+        if status!=200:raise StoreHTTPError(status)
         html=body.decode('utf-8-sig')
         if age_location(current,target):
             m=re.search(r'<script[^>]*id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',html,re.S)
@@ -188,9 +222,12 @@ def parse_page(html,value):
             if m:out['pages']=int(m[1])
         elif key in ('作品形式','カテゴリー'):
             if kind=='dmm-books' and key=='カテゴリー' and not any(s in n.text() for s in ('マンガ','漫画','コミック')):raise ValueError('This importer supports comic products only')
-            if kind=='dlsite' and not any(s in n.text() for s in ('マンガ','コミック','同人誌')):raise ValueError('This importer supports comic products only')
+            if kind=='dlsite':
+                cg='CG・イラスト' in n.text()
+                if not cg and not any(s in n.text() for s in ('マンガ','漫画','コミック','同人誌')):raise ValueError('DLsite importer supports comics and CG illustrations only')
+                if cg:out['category']='artist cg'
             if kind=='fanza-doujin' and 'コミック' not in n.text():raise ValueError('This importer supports comic products only')
-            comic_type=any(s in n.text() for s in ('マンガ','漫画','コミック','同人誌'))
+            comic_type=any(s in n.text() for s in ('マンガ','漫画','コミック','同人誌')) or kind=='dlsite' and cg
     if kind=='dlsite':
         for ident in ('work_outline','work_maker'):
             for table in root.find(ident=ident):

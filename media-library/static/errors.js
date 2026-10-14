@@ -1,4 +1,8 @@
 const messages={
+ 'DLsite importer supports comics and CG illustrations only':'DLsiteは漫画・CG／イラストに対応しています。音声・ゲームなどは対象外です',
+ 'DLsite Play series links are not supported; use an individual /work/RJ or /work/BJ link':'DLsite Playのシリーズリンクは未対応です。個別作品の /work/RJ… または /work/BJ… のリンクを指定してください',
+ 'DLsite product page unavailable; enter metadata manually or use another source':'通常のDLsite商品ページが見つかりません。販売終了などの可能性があります。手動入力するか、別のソースリンクを指定してください',
+ 'Use a supported work or comic product URL':'対応する作品・漫画商品ページのURLを指定してください',
  'This importer supports comic products only':'このインポーターは漫画の商品ページに対応しています',
  'Unexpected store redirect; login or challenge may be required':'販売サイトが別の画面へ転送しました。ログインやアクセス確認が必要な可能性があります',
  'Store page has no product title; login or source format change may be responsible':'商品名を取得できませんでした。ログイン要求やページ構造の変更の可能性があります',
