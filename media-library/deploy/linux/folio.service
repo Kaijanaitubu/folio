@@ -1,0 +1,40 @@
+[Unit]
+Description=Folio private media library
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=folio
+Group=folio
+WorkingDirectory=/opt/folio/media-library
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=MEDIA_DB=/var/lib/folio/library.sqlite3
+Environment=MEDIA_BACKUPS=/var/lib/folio/backups
+Environment=FOLIO_KEY_FILE=/var/lib/folio/private/nhentai-api-key.aesgcm
+LoadCredential=folio-nhentai-master:/etc/folio/nhentai-master
+StateDirectory=folio
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/folio/media-library/server.py --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LimitCORE=0
+MemoryHigh=384M
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

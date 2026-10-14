@@ -2,7 +2,7 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-A working PC-hosted implementation of Personal Media Database Requirements v2.0. Uses Python's standard library, SQLite, and browser JavaScript. No package installation, paid hosting, Node build, or external account is required.
+A working implementation of Personal Media Database Requirements v2.0, with PC hosting and private Linux VPS deployment. Uses Python's standard library, SQLite, and browser JavaScript. No package installation, paid hosting, Node build, or external account is required.
 
 Future requests, hosting options, and implementation status are tracked in the [development roadmap (Japanese)](ROADMAP.md). Update that file as proposals are discussed, approved, implemented, or deferred.
 
@@ -11,6 +11,8 @@ momon-ga work pages are supported in individual imports, bookmark HTML, bookmark
 Bookmarklet address/copy settings and the source URL opener are on Imports. Typing `mark` or `mark:` in the search bar suggests the five marks with their numbers, symbols and shared labels; choosing one inserts a valid query such as `mark:4`. `mark2:` also offers `yes` / `no`.
 
 ## Start on this PC
+
+For private Linux hosting, see [the VPS deployment guide (Japanese)](VPS-DEPLOYMENT.md). It includes a loopback-only systemd service, Tailscale HTTPS, encrypted Linux credential storage, and external database backup configuration.
 
 Open PowerShell in the application's `media-library` directory (the parent of this `documents` directory) and run the command below. Use that directory for all application and test commands in this guide.
 

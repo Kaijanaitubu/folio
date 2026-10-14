@@ -1,0 +1,25 @@
+[Unit]
+Description=Folio database snapshot and external backup
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/var/lib/folio/private/rclone.conf
+
+[Service]
+Type=oneshot
+User=folio
+Group=folio
+WorkingDirectory=/opt/folio/media-library
+Environment=MEDIA_DB=/var/lib/folio/library.sqlite3
+Environment=MEDIA_BACKUPS=/var/lib/folio/backups
+Environment=FOLIO_BACKUP_REMOTE=onedrive:tubu/Programing/folio/vps-backups
+Environment=RCLONE_CONFIG=/var/lib/folio/private/rclone.conf
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/folio/media-library/deploy/linux/cloud_backup.py
+TimeoutStartSec=15min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/folio

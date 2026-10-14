@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Folio external backup
+
+[Timer]
+OnCalendar=*-*-* 04:15:00 Asia/Tokyo
+Persistent=true
+RandomizedDelaySec=5min
+Unit=folio-cloud-backup.service
+
+[Install]
+WantedBy=timers.target

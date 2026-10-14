@@ -45,6 +45,15 @@ class ResizeTests(unittest.TestCase):
         with Image.new('RGB',(100,100),'white') as source, patch('cover_resize.MAX_PIXELS',9999):
             with self.assertRaises(ValueError): cover_resize.thumbnail('image/png',self.encoded(source))
 
+    def test_optional_avif_decoder_is_not_required(self):
+        Image.init()
+        decoders={name:value for name,value in Image.OPEN.items() if name!='AVIF'}
+        with patch.dict(Image.OPEN,decoders,clear=True):
+            with self.assertRaises(OSError): cover_resize.thumbnail('image/webp',b'invalid')
+            with Image.new('RGB',(100,100),'white') as source:
+                data=self.encoded(source)
+                self.assertEqual(cover_resize.thumbnail('image/png',data),('image/png',data))
+
     def test_relay_caches_resized_cover_and_falls_back_on_resize_failure(self):
         hash_value = '0' * 61 + '123'
         small = 'https://atn.gold-usergeneratedcontent.net/webpsmalltn/3/12/' + hash_value + '.webp'

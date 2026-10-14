@@ -22,9 +22,10 @@ def metadata_key(value):
     text = unicodedata.normalize('NFKC', value or '').casefold()
     text = ''.join(chr(ord(ch)-0x60) if '\u30a1' <= ch <= '\u30f6' else ch for ch in text)
     return unicodedata.normalize('NFD', text)
-def connect():
-    PATH.parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(PATH, timeout=30)
+def connect(path=None):
+    database=Path(path or PATH)
+    database.parent.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(database, timeout=30)
     c.row_factory = sqlite3.Row
     c.execute('PRAGMA foreign_keys=ON')
     c.create_function('fold',1,lambda s:(s or '').casefold(), deterministic=True)

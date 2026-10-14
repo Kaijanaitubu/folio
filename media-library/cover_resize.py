@@ -7,7 +7,9 @@ MAX_PIXELS = 16_000_000
 def thumbnail(mime, data):
     # Optional dependency: callers fall back to source thumbnails if unavailable.
     from PIL import Image, ImageOps
-    with Image.open(BytesIO(data), formats=('WEBP', 'JPEG', 'PNG', 'AVIF')) as source:
+    Image.init()
+    formats=tuple(name for name in ('WEBP', 'JPEG', 'PNG', 'AVIF') if name in Image.OPEN)
+    with Image.open(BytesIO(data), formats=formats) as source:
         if source.width * source.height > MAX_PIXELS:
             raise ValueError('Reader cover exceeds the decoded pixel limit')
         with ImageOps.exif_transpose(source) as oriented:

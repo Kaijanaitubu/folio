@@ -18,6 +18,8 @@ DLsiteの漫画・CG／イラスト、FANZA同人・DMM/FANZAブックスの漫�
 
 ## このPCで起動する
 
+Linux VPSで個人運用する場合は [VPS運用手順](VPS-DEPLOYMENT.md) を参照してください。Tailscale内のHTTPS・自動起動・Linuxの暗号化キー保存・外部バックアップ用の設定を用意しています。
+
 アプリ本体の `media-library` フォルダ（この資料がある `documents` の一つ上）でPowerShellを開き、次のコマンドを実行します。このガイドの起動・検証コマンドは、すべて `media-library` フォルダで実行してください。
 
 ```powershell

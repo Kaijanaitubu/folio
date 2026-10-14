@@ -7,6 +7,8 @@ import secrets
 import sqlite3
 import threading
 import time
+import tempfile
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -135,6 +137,24 @@ class Handler(BaseHTTPRequestHandler):
             if self.command not in ('GET','HEAD'): raise ValueError('Invalid cover request')
             self.send_cover(ident); return
         data=self.body() if self.command in ('POST','PUT') else {}
+        if action=='backup' and ident=='download':
+            if self.command!='POST':
+                self.send_json({'error':'Use POST to download a backup'},405);return
+            snapshot=db.backup()
+            with tempfile.TemporaryFile() as stream:
+                with zipfile.ZipFile(stream,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
+                    archive.write(snapshot,snapshot.name)
+                size=stream.tell();stream.seek(0)
+                self.send_response(200)
+                self.send_header('Content-Type','application/zip')
+                self.send_header('Content-Disposition',f'attachment; filename="{snapshot.stem}.zip"')
+                self.send_header('Content-Length',str(size))
+                self.send_header('Cache-Control','no-store')
+                self.send_header('X-Content-Type-Options','nosniff')
+                self.send_header('Cross-Origin-Resource-Policy','same-origin')
+                self.end_headers();self.connection.settimeout(300)
+                while chunk:=stream.read(65536): self.wfile.write(chunk)
+            return
         if action=='covers' and ident=='preview' and self.command=='POST':
             if not cover_relay.SLOTS.acquire(timeout=25): raise ValueError('Cover relay is busy; try again')
             try:
@@ -328,8 +348,10 @@ def main():
     parser=argparse.ArgumentParser(); parser.add_argument('--host',default=os.environ.get('MEDIA_HOST','0.0.0.0')); parser.add_argument('--port',type=int,default=int(os.environ.get('MEDIA_PORT','8765'))); parser.add_argument('--backup',action='store_true'); parser.add_argument('--restore')
     args=parser.parse_args()
     if args.restore:
-        source=sqlite3.connect(args.restore); check=source.execute('PRAGMA integrity_check').fetchone()[0]
+        if not Path(args.restore).is_file(): raise ValueError('Backup file does not exist')
+        source=db.connect(args.restore); check=source.execute('PRAGMA integrity_check').fetchone()[0]
         if check!='ok': raise ValueError('Backup integrity check failed')
+        if source.execute('PRAGMA foreign_key_check').fetchone(): raise ValueError('Backup contains invalid references')
         if db.PATH.exists(): db.backup()
         db.PATH.parent.mkdir(parents=True,exist_ok=True); target=sqlite3.connect(db.PATH); source.backup(target); target.close(); source.close()
         print('Restored. Start the server normally.'); return
