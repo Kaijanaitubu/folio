@@ -1,0 +1,14 @@
+{
+  "format": "folio-dlsite-play-purchases-v1",
+  "count": { "user": 3 },
+  "sales": [
+    { "workno": "RJ123456" },
+    { "workno": "RJ123457" },
+    { "workno": "RJ123458" }
+  ],
+  "works": [
+    { "workno": "RJ123456", "name": { "ja_JP": "確認用の漫画（架空データ）" }, "work_type": "MNG" },
+    { "workno": "RJ123457", "name": { "ja_JP": "確認用のCG（架空データ）" }, "work_type": "ICG" },
+    { "workno": "RJ123458", "name": { "ja_JP": "確認用の音声（架空データ）" }, "work_type": "SOU" }
+  ]
+}
