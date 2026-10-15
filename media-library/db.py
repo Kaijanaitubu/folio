@@ -81,6 +81,8 @@ def init():
     with transaction() as c: features.init(c)
     import marks
     with transaction() as c: marks.init(c)
+    import sharing
+    with transaction() as c: sharing.init(c)
     import tag_policy
     with transaction() as c: tag_policy.init(c)
     import import_jobs

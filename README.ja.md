@@ -34,3 +34,7 @@ python server.py --host 127.0.0.1 --port 8765
 リポジトリにはアプリのソースコードとドキュメントを含めています。個人のライブラリデータベース、バックアップ、ログ、インポートしたブックマークファイル、ローカルのテスト出力は含めません。新しくインストールすると、空のデータベースが作成されます。
 
 - [F-002 / F-003 / F-013 import specification (日本語)](media-library/documents/IMPORT-SPEC.md)
+
+## 作品の共有
+
+作品詳細の「共有」から、公開項目を確認して固定の共有リンクを発行できます。評価・レビュー・マークは初期状態で公開対象で、項目ごとに外せます。同じ画面から共有解除できます。 [Sharing specification](media-library/documents/SHARING-SPEC.md).

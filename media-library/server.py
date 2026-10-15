@@ -25,6 +25,7 @@ import tag_policy
 import marks
 import trash_sources
 import work_merge
+import sharing
 from search import CATEGORIES
 
 TOKEN=secrets.token_urlsafe(32)
@@ -215,6 +216,12 @@ class Handler(BaseHTTPRequestHandler):
                     if ident and not c.execute('SELECT 1 FROM works WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone(): raise ValueError('Entry not found')
                     result=trash_sources.save(c,data,ident)
                 elif self.command=='DELETE': db.delete_work(c,ident); result={'ok':True}
+            elif action=='shares':
+                if self.command=='GET': result=sharing.list_pages(c,ident)
+                elif self.command=='POST' and len(parts)==3 and parts[2]=='preview': result=sharing.snapshot(c,ident,data.get('options',{}))
+                elif self.command=='POST' and len(parts)==2: result=sharing.create(c,ident,data)
+                elif self.command=='DELETE' and len(parts)==3: result=sharing.revoke(c,ident,parts[2])
+                else: raise ValueError('Invalid sharing request')
             elif action=='trash':
                 if self.command=='GET': result=features.trash_list(c)
                 elif self.command=='POST' and ident=='restore-preview': result=features.restore_preview(c,data.get('ids',[]))

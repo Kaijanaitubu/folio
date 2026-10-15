@@ -1,0 +1,13 @@
+# Replace domain and public IPv4 with the deployment values.
+share.example.com {
+    bind 203.0.113.10
+    handle /s/* {
+        reverse_proxy 127.0.0.1:8768
+    }
+    handle /robots.txt {
+        reverse_proxy 127.0.0.1:8768
+    }
+    handle {
+        respond "Not found" 404
+    }
+}

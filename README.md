@@ -31,3 +31,7 @@ This version uses one shared local library without account authentication. Host 
 The repository includes application source and documentation. Personal library databases, backups, logs, imported bookmark files, and local test output are excluded. A fresh installation creates its own empty database.
 
 - [F-002 / F-003 / F-013 import specification (日本語)](media-library/documents/IMPORT-SPEC.md)
+
+## Share a work
+
+Use Share on a work detail page to publish a fixed snapshot. Ratings, reviews and marks are included by default and can be unchecked before publishing. Revoke existing links in the same dialog. [Sharing specification](media-library/documents/SHARING-SPEC.md).

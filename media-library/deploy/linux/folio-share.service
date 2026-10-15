@@ -1,0 +1,23 @@
+[Unit]
+Description=Folio public snapshot reader
+After=network-online.target folio.service
+[Service]
+User=folio
+Group=folio
+WorkingDirectory=/opt/folio/media-library
+Environment=MEDIA_DB=/var/lib/folio/library.sqlite3
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/folio/media-library/share_server.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/folio
+ReadOnlyPaths=/var/lib/folio/library.sqlite3
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LimitCORE=0
+MemoryMax=160M
+[Install]
+WantedBy=multi-user.target

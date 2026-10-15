@@ -1,0 +1,46 @@
+# F-021：作品の共有ページ（v1）
+
+2026-10-15。リンクを知る人向け・共有時点で固定・個人記録は初期状態で公開・いつでも共有解除可能という利用者の指定を実装する。
+
+## 発行と公開内容
+
+作品詳細の「共有」から発行する。タイトル・表紙・カテゴリ・言語・ページ数・作者・サークル・シリーズ・キャラクター・タグ・ソースリンクが対象。評価（評価軸の名称・最大値を含む）・レビュー・オンのマーク（ラベルと記号）は初期状態で公開対象とし、項目ごとに外せる。発行前に公開対象の内容を画面内で確認する。元のブックマーク名・取得タイトル履歴・内部ID・作成者ID・操作履歴・APIキーは公開しない。
+
+発行時に公開専用のJSONを保存する。元作品の編集、タグ名・別名の変更、評価軸やマークの設定変更に追随しない。画像本体は固定保存せず、発行時点の画像URLをRAM中継するため、外部画像が変わる・消える可能性はある。公開ページは英語／日本語の発行時言語を保持する。
+
+## 閲覧と解除
+
+192ビットのランダム値を持つ `/s/{token}` をHTTPSで配布する。ログイン不要。公開一覧・サイトマップは設けず、robots.txt・HTML meta・HTTP X-Robots-Tagで現時点の検索掲載を抑止する。これはパスワード制限ではなく、リンクを受け取った人が他者へ転送できる。
+
+発行済みURLを共有ダイアログからコピー・閲覧・解除できる。解除後はページ・表紙とも404にする。画像取得途中の解除も送信前に再確認する。ブラウザと中継にはno-storeを指定する。閲覧者が既に保存・撮影した内容までは回収できない。
+
+元作品をゴミ箱へ移動・完全削除した場合も解除する。復元時は自動的に再公開しない。同じ作品から複数の固定共有を発行できる（同時に20件まで）。編集後の再発行は新規URLになる。
+
+## 配信構成
+
+- 私有ライブラリは既存のTailscale HTTPSで運用する。
+- 公開用は `share_server.py` のループバック8768に分離し、共有ページ・表紙・robots.txt以外は404とする。私有API・静的アプリ・バックアップを配信しない。
+- CaddyはVPSの公開IPv4上で80/443を受け、HTTPS証明書を自動更新する。既存Tailscaleの443とはIPを分ける。[Caddy公式HTTPS説明](https://caddyserver.com/docs/quick-starts/https)。
+- 公開プロセスはSQLiteをmode=roで開き、共有スナップショットだけを参照する。DB本体はsystemdでも読み取り専用にする。WAL補助ファイル用にDBディレクトリへの書き込みは許可する。
+- トークンを含むアクセスログは保存しない。Referrer-Policy:no-referrerとCSPを付け、メタデータはHTMLとして解釈せずエスケープする。
+- shared_pagesは既存DB内にあり、通常のDBバックアップに含まれる。
+
+## 後の拡張
+
+schema_version・visibility・update_modeを別々に持つ。現行はunlisted/snapshotのみ受け付ける。検索掲載・公開一覧や更新追随は、明示した共有設定と公開データの更新処理を将来追加する。現行共有が勝手に検索掲載や自動更新へ変わらないようにする。
+
+ドメイン変更はCaddyのサイト名と `/etc/folio/sharing.env` のFOLIO_SHARE_BASEを変更する。公開データとトークンは移行不要。管理画面は新しいドメインでURLを表示する。旧URLを存続させる場合は旧ドメインの維持・転送が別途必要。今回ユーザーは旧URLの存続を必須としない。
+
+F-005のユーザー別ライブラリを先行必須とはせず、現行owner単位で管理し、公開データへownerを出さない。F-022のコピー登録は今回の対象外。
+
+## VPSへの導入と設定変更
+
+初期公開先：`https://ik1-304-12030.vs.sakura.ne.jp/s/{token}`。管理画面は従来のTailscale URL。
+
+コードを `/opt/folio/media-library/` に配置し、Ubuntuのcaddyパッケージを使用する。`deploy/linux/folio-share.service` を `/etc/systemd/system/` に設置する。`deploy/linux/Caddyfile.share.example` のドメインとbind先IPv4を自分の値に変更し、`/etc/caddy/Caddyfile` へ配置する。プライベートサーバーのプロキシ先8765を公開設定へ追加しない。
+
+`/etc/folio/sharing.env` に `FOLIO_SHARE_BASE=https://利用するホスト名` を記載し、`/etc/systemd/system/folio.service.d/sharing.conf` から EnvironmentFile として読み込む。systemd daemon-reload後にfolioを再起動し、folio-shareとcaddyを有効化する。OSとVPS事業者側の両方でTCP 80/443を許可する。SSHの22番は維持する。
+
+新ドメインへ変更するときは、そのDNS AレコードをVPSの公開IPv4へ設定し、Caddyサイト名とsharing.envを変更する。`caddy validate --config /etc/caddy/Caddyfile` 後にCaddyをreloadし、folioを再起動する。新しい証明書が有効であることと、公開側で `/api/config`・`/api/works`・`/app.js` が404であることを確認する。旧ドメインを廃止した場合、配布済み旧URLは利用できなくなる。
+
+稼働確認：folio、folio-share、caddyのsystemd状態を確認する。公開プロセスの一時停止・再起動は私有ライブラリへ影響しない。共有データを含むDBバックアップをデプロイ前に作成済み。
