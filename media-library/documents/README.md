@@ -2,6 +2,8 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
+Imports now opens four purpose cards: links, browser bookmarks, service favorites and purchased works. Import history and registration setup are separate views; Kemono favorites JSON can be loaded directly. See [import screen behavior](IMPORT-UI-SPEC.md).
+
 Use **Choose primary name** in any metadata editor to promote an alias; the former primary remains an alias for search and imports. Existing display choices migrate automatically, while conflicting entries await a reviewed merge. See [tag and primary-name behavior](TAG-SPEC.md).
 
 A working implementation of Personal Media Database Requirements v2.0, with PC hosting and private Linux VPS deployment. Uses Python's standard library, SQLite, and browser JavaScript. No package installation, paid hosting, Node build, or external account is required.

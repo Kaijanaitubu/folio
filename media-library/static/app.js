@@ -1,3 +1,4 @@
+import {importScreen,importLocation} from './import-screen.js';
 import {fanzaPurchaseTools,bindFanzaPurchaseTools} from './fanza-purchases.js';
 import {createMarkUI,markEn,markJa} from './mark-ui.js';
 import {searchHelpHTML} from './search-help.js';
@@ -305,19 +306,67 @@ function dimensionEditor(d){
 }
 
 let bookmarkItems=[],selectedBookmarks=new Set();
-async function imports(){shell('imports',heading(t('importsTitle'),t('importsHint'))+`${sourceTools()}${fanzaPurchaseTools(lang)}${pawchiveUI.tools()}<div id="nhentai-import"></div><section class="panel"><label><span>${esc(t('bookmarkTitlePreference'))}</span><select id="bookmark-title-mode"><option value="source">${esc(t('sourceTitleFirst'))}</option><option value="bookmark">${esc(t('bookmarkTitleFirst'))}</option></select><small class="muted">${esc(t('bookmarkTitlePreferenceHint'))}</small></label>${nhentaiUI.modes('bookmark-tag-mode','nhentaiBatch')}${pawchiveUI.batchOption()}</section><label class="file-drop">${icon('upload')}<h3>${esc(t('upload'))}</h3><span>${esc(t('uploadHint'))}</span><input id="bookmark-file" type="file" accept=".html,.htm,text/html"></label><div id="import-error"></div><div id="bookmark-preview"></div><h2 class="results-line">${esc(t('jobs'))}</h2><div id="jobs" class="directory-list"></div>`);bindSourceTools();bindFanzaPurchaseTools(lang);pawchiveUI.bind();$('#bookmark-original-links').checked=localStorage.getItem('folio-bookmark-original-links')!=='false';$('#bookmark-original-links').onchange=e=>localStorage.setItem('folio-bookmark-original-links',String(e.target.checked));$('#bookmark-title-mode').value=localStorage.getItem('folio-bookmark-title-mode')==='bookmark'?'bookmark':'source';$('#bookmark-title-mode').onchange=e=>localStorage.setItem('folio-bookmark-title-mode',e.target.value);$('#bookmark-file').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>12*1024*1024)throw Error(t('uploadHint'));bookmarkItems=await api('bookmarks','POST',{html:await f.text()});selectedBookmarks=new Set(bookmarkItems.map((b,i)=>b.supported&&!b.duplicate?i:-1).filter(i=>i>=0));paintBookmarkPreview()}catch(e){error($('#import-error'),e)}};await loadJobs();await nhentaiUI.mount($('#nhentai-import'))}
-function paintBookmarkPreview(){const folders=[...new Set(bookmarkItems.map(b=>b.folder))];$('#bookmark-preview').innerHTML=`<section class="panel stack"><div class="row between"><h3>${esc(t('preview'))} · ${bookmarkItems.length}</h3><span id="selected-count" class="muted small"></span></div><div class="row wrap">${btn(t('selectAll'),'select-all')}${btn(t('selectNone'),'select-none')}<select id="folder-filter" aria-label="${esc(t('folder'))}"><option value="*">${esc(t('allFolders'))}</option>${folders.map(f=>`<option value="${esc(f)}">${esc(f||'/')}</option>`).join('')}</select></div><div class="bookmark-list" id="bookmark-list"></div>${btn(t('startImport'),'start-job','primary','upload')}</section>`;const paint=()=>{const f=$('#folder-filter').value;$('#bookmark-list').innerHTML=bookmarkItems.map((b,i)=>({b,i})).filter(({b})=>f==='*'||b.folder===f).map(({b,i})=>`<label class="bookmark-row"><input type="checkbox" data-bookmark="${i}" ${selectedBookmarks.has(i)?'checked':''} ${!b.supported||b.duplicate?'disabled':''}><div class="info">${esc(b.label||b.url)}<small>${esc(b.folder)}<br>${esc(b.url)}</small></div><span class="status">${esc(t(b.duplicate?'duplicate':b.related?.length?'relatedPages':b.supported?'supported':'unsupported'))}</span></label>`).join('');$('#selected-count').textContent=`${selectedBookmarks.size} / ${bookmarkItems.length}`;$$('[data-bookmark]').forEach(el=>el.onchange=()=>{const i=Number(el.dataset.bookmark);el.checked?selectedBookmarks.add(i):selectedBookmarks.delete(i);$('#selected-count').textContent=`${selectedBookmarks.size} / ${bookmarkItems.length}`})};$('#folder-filter').onchange=paint;$('#select-all').onclick=()=>{const f=$('#folder-filter').value;bookmarkItems.forEach((b,i)=>{if(b.supported&&!b.duplicate&&(f==='*'||f===b.folder))selectedBookmarks.add(i)});paint()};$('#select-none').onclick=()=>{const f=$('#folder-filter').value;bookmarkItems.forEach((b,i)=>{if(f==='*'||f===b.folder)selectedBookmarks.delete(i)});paint()};$('#start-job').onclick=async()=>{if(!selectedBookmarks.size)return;try{const job=await api('jobs','POST',{items:[...selectedBookmarks].map(i=>bookmarkItems[i]),title_mode:$('#bookmark-title-mode').value,tag_mode:$('#bookmark-tag-mode').value,include_original_links:$('#bookmark-original-links').checked});nav('/job/'+job.id)}catch(e){error($('#import-error'),e)}};paint()}
-async function loadJobs(){const list=await api('jobs');if(!$('#jobs'))return;$('#jobs').innerHTML=list.map(j=>`<a class="directory-row" href="#/job/${j.id}"><div><div class="name">${new Date(j.created).toLocaleString(lang)}</div><div class="subtitle">${Object.values(j.counts).reduce((a,b)=>a+b,0)} ${esc(t('works'))} · ${j.counts.added||0} ${esc(t('added'))}</div></div><span class="status">${esc(t(j.status))}</span></a>`).join('')||`<p class="muted small">${esc(t('noJobs'))}</p>`;jobTimer=setTimeout(loadJobs,3000)}
+async function imports(){
+ const state=importLocation(route().params);bookmarkItems=[];selectedBookmarks=new Set();
+ shell('imports',heading(t('importsTitle'),lang==='ja'?'取り込みたいものを選んで、内容を確認してから登録します。':'Choose an import source, review the list, then register your works.')+importScreen({...state,lang,esc,icon,t,sourceTools,pawTools:pawchiveUI.tools,fanzaTools:fanzaPurchaseTools,modes:nhentaiUI.modes,pawOption:pawchiveUI.batchOption}));
+ if(state.view==='settings'){bindSourceTools();return}
+ if(state.view==='link'){bindSourceOpen();return}
+ if(state.view==='history'){await loadJobs();return}
+ if(state.view==='favorites'&&state.service==='nhentai'){await nhentaiUI.mount($('#nhentai-import'));return}
+ const input=$('#bookmark-file');if(!input)return;
+ if(state.kind==='pawchive')pawchiveUI.bind();if(state.kind==='fanza')bindFanzaPurchaseTools(lang);
+ const preference=key=>'folio-import-'+state.kind+'-'+key;
+ const title=$('#bookmark-title-mode'),mode=$('#bookmark-tag-mode'),originals=$('#bookmark-original-links');
+ title.value=(localStorage.getItem(preference('title'))||(state.kind==='bookmarks'?localStorage.getItem('folio-bookmark-title-mode'):'source'))==='bookmark'?'bookmark':'source';
+ title.onchange=()=>localStorage.setItem(preference('title'),title.value);
+ mode.value=localStorage.getItem(preference('tag'))==='frequency'?'frequency':'neutral';mode.onchange=()=>localStorage.setItem(preference('tag'),mode.value);
+ if(originals){originals.checked=(localStorage.getItem(preference('originals'))??localStorage.getItem('folio-bookmark-original-links'))!=='false';originals.onchange=()=>localStorage.setItem(preference('originals'),String(originals.checked))}
+ let sequence=0;const root=$('#bookmark-preview');
+ input.onchange=async()=>{
+  const seq=++sequence;root.replaceChildren();$('#import-error').replaceChildren();$('#import-list-summary').replaceChildren();bookmarkItems=[];selectedBookmarks=new Set();
+  try{const file=input.files[0];if(!file)return;if(file.size>12*1024*1024)throw Error(lang==='ja'?'ファイルは12 MB以下にしてください。':'Use a file of 12 MB or less.');
+   const result=await api('import-list','POST',{kind:state.kind,text:await file.text()});if(seq!==sequence||!root.isConnected)return;
+   bookmarkItems=result.items;selectedBookmarks=new Set(bookmarkItems.map((b,i)=>b.supported&&!b.duplicate?i:-1).filter(i=>i>=0));
+   const n=result.summary,s=(en,ja)=>lang==='ja'?ja:en;
+   $('#import-list-summary').innerHTML=`<section class="notice import-file-summary"><b>${esc(file.name)}</b><p>${esc(s('File entries','ファイル内の投稿・リンク'))}: ${n.input} · ${esc(s('Ready to select','選択可能'))}: ${n.selectable} · ${esc(s('Registered URLs','登録済みURL'))}: ${n.registered} · ${esc(s('Repeated in file','ファイル内重複'))}: ${n.duplicates} · ${esc(s('Unsupported / excluded','未対応・対象外'))}: ${n.unsupported}${n.artists_ignored?' · '+esc(s('Artist favorites excluded','お気に入り作者（対象外）'))+': '+n.artists_ignored:''}</p><small>${esc(s('Metadata is fetched only after Start import. Videos and remote fetch failures are reported in the job results.','メタデータの取得は取り込み開始後です。動画の除外や取得失敗は取り込み結果に表示します。'))}</small></section>`;
+   paintBookmarkPreview();
+  }catch(e){if(seq===sequence&&root.isConnected)error($('#import-error'),e)}
+ };
+}
+function paintBookmarkPreview(){
+ const folders=[...new Set(bookmarkItems.map(b=>b.folder))];let limit=100;
+ const s=(en,ja)=>lang==='ja'?ja:en;
+ $('#bookmark-preview').innerHTML=`<section class="panel stack"><div class="row between wrap"><h3>${esc(s('Review import','取り込み内容を確認'))} · ${bookmarkItems.length}</h3><span id="selected-count" class="muted small"></span></div><div class="row wrap">${btn(t('selectAll'),'select-all')}${btn(t('selectNone'),'select-none')}<select id="folder-filter" aria-label="${esc(t('folder'))}" ${folders.length<2?'hidden':''}><option value="*">${esc(t('allFolders'))}</option>${folders.map(f=>`<option value="${esc(f)}">${esc(f||'/')}</option>`).join('')}</select></div><div class="bookmark-list" id="bookmark-list"></div><div id="bookmark-more"></div>${btn(t('startImport'),'start-job','primary','upload')}</section>`;
+ const count=()=>{$('#selected-count').textContent=`${selectedBookmarks.size} / ${bookmarkItems.length}`;$('#start-job').disabled=!selectedBookmarks.size};
+ const paint=()=>{
+  const folder=$('#folder-filter').value,items=bookmarkItems.map((b,i)=>({b,i})).filter(({b})=>folder==='*'||b.folder===folder);
+  $('#bookmark-list').innerHTML=items.slice(0,limit).map(({b,i})=>`<label class="bookmark-row"><input type="checkbox" data-bookmark="${i}" ${selectedBookmarks.has(i)?'checked':''} ${!b.supported||b.duplicate?'disabled':''}><div class="info">${esc(b.label||b.url)}<small>${esc(b.folder)}<br>${esc(b.url)}</small></div><span class="status">${esc(t(b.duplicate?'duplicate':b.related?.length?'relatedPages':b.supported?'supported':'unsupported'))}</span></label>`).join('')||`<p>${esc(s('No entries to import.','取り込める項目がありません。'))}</p>`;
+  $('#bookmark-more').innerHTML=items.length>limit?btn(t('loadMore')+` (${limit}/${items.length})`,'bookmark-load-more'):'';
+  $('#bookmark-load-more')?.addEventListener('click',()=>{limit+=100;paint()});count();
+  $$('[data-bookmark]').forEach(el=>el.onchange=()=>{const i=Number(el.dataset.bookmark);el.checked?selectedBookmarks.add(i):selectedBookmarks.delete(i);count()});
+ };
+ $('#folder-filter').onchange=()=>{limit=100;paint()};
+ $('#select-all').onclick=()=>{const f=$('#folder-filter').value;bookmarkItems.forEach((b,i)=>{if(b.supported&&!b.duplicate&&(f==='*'||f===b.folder))selectedBookmarks.add(i)});paint()};
+ $('#select-none').onclick=()=>{const f=$('#folder-filter').value;bookmarkItems.forEach((b,i)=>{if(f==='*'||f===b.folder)selectedBookmarks.delete(i)});paint()};
+ $('#start-job').onclick=async()=>{if(!selectedBookmarks.size)return;const button=$('#start-job');button.disabled=true;try{
+  const job=await api('jobs','POST',{items:[...selectedBookmarks].map(i=>bookmarkItems[i]),title_mode:$('#bookmark-title-mode').value,tag_mode:$('#bookmark-tag-mode').value,include_original_links:$('#bookmark-original-links')?.checked||false});if(button.isConnected)nav('/job/'+job.id);
+ }catch(e){if(button.isConnected){error($('#import-error'),e);count()}}};paint();
+}
+async function loadJobs(){
+ const root=$('#jobs');if(!root)return;const list=await api('jobs');if(!root.isConnected)return;
+ root.innerHTML=list.map(j=>`<a class="directory-row" href="#/job/${j.id}"><div><div class="name">${new Date(j.created).toLocaleString(lang)}</div><div class="subtitle">${Object.values(j.counts).reduce((a,b)=>a+b,0)} ${esc(t('works'))} · ${j.counts.added||0} ${esc(t('added'))}</div></div><span class="status">${esc(t(j.status))}</span></a>`).join('')||`<p class="muted small">${esc(t('noJobs'))}</p>`;jobTimer=setTimeout(loadJobs,3000);
+}
 async function jobPage(id){await nhentaiUI.jobPage(id)}
 
-function sourceTools(){return `<section class="panel stack"><h3>${esc(t('sourceTools'))}</h3><p>${esc(t('sourceToolsHint'))}</p><p class="muted small">${esc(t('sourceLookupHint'))}</p><label><span>${esc(t('folioAddress'))}</span><input id="folio-address" type="url" value="${esc(localStorage.getItem('folio-source-address')||location.origin)}"></label><p id="bookmark-warning" class="notice small" hidden>${esc(t('bookmarkLocalWarning'))}</p><div id="bookmark-error"></div><label><span>${esc(t('bookmarkCode'))}</span><textarea id="bookmark-code" readonly rows="4" spellcheck="false"></textarea></label><div>${btn(t('copyBookmark'),'copy-bookmark')}</div><p class="muted small">${esc(t('bookmarkHelp'))}</p><p class="muted small">${esc(t('desktopBookmarkHelp'))} <a id="folio-bookmark" draggable="true">Folio</a></p><form id="source-open-form" class="stack"><label><span>${esc(t('sourcePaste'))}</span><input id="source-url" type="url" required placeholder="https://hitomi.la/reader/123.html#7"></label><div><button type="submit" class="btn primary">${esc(t('openInFolio'))}</button></div></form></section>`}
+function sourceTools(){return `<section class="panel stack"><h3>${esc(t('sourceTools'))}</h3><p>${esc(t('sourceToolsHint'))}</p><p class="muted small">${esc(t('sourceLookupHint'))}</p><label><span>${esc(t('folioAddress'))}</span><input id="folio-address" type="url" value="${esc(localStorage.getItem('folio-source-address')||location.origin)}"></label><p id="bookmark-warning" class="notice small" hidden>${esc(t('bookmarkLocalWarning'))}</p><div id="bookmark-error"></div><label><span>${esc(t('bookmarkCode'))}</span><textarea id="bookmark-code" readonly rows="4" spellcheck="false"></textarea></label><div>${btn(t('copyBookmark'),'copy-bookmark')}</div><p class="muted small">${esc(t('bookmarkHelp'))}</p><p class="muted small">${esc(t('desktopBookmarkHelp'))} <a id="folio-bookmark" draggable="true">Folio</a></p></section>`}
 function bindSourceTools(){
  const paint=()=>{try{const base=new URL($('#folio-address').value),code=bookmarklet(base.href);$('#bookmark-code').value=code;$('#folio-bookmark').href=code;$('#copy-bookmark').disabled=false;$('#bookmark-error').innerHTML='';$('#bookmark-warning').hidden=!['localhost','127.0.0.1','[::1]'].includes(base.hostname);localStorage.setItem('folio-source-address',base.origin)}catch(e){$('#bookmark-code').value='';$('#folio-bookmark').removeAttribute('href');$('#copy-bookmark').disabled=true;error($('#bookmark-error'),e)}};
  paint();$('#folio-address').oninput=paint;
  $('#folio-bookmark').onclick=e=>{e.preventDefault();toast(t('bookmarkHelp'))};
  $('#copy-bookmark').onclick=async()=>{const field=$('#bookmark-code');try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(field.value)}else{field.focus();field.select();if(!document.execCommand('copy'))throw Error('copy')}toast(t('bookmarkCopied'))}catch{field.focus();field.select();toast(t('copyManually'))}};
- $('#source-open-form').onsubmit=e=>{e.preventDefault();nav('/source?'+new URLSearchParams({url:$('#source-url').value.trim()}))};
+ bindSourceOpen();
 }
+function bindSourceOpen(){const form=$('#source-open-form');if(form)form.onsubmit=e=>{e.preventDefault();nav('/source?'+new URLSearchParams({url:$('#source-url').value.trim()}))}}
 async function openSource(version){
  const value=route().params.get('url')||'';
  shell('library',heading(t('sourceChecking'),t('sourceToolsHint')));

@@ -145,8 +145,13 @@ def title_matches(c,title,exclude=''):
 def exact_sources(c,value,exclude=''):
     key=normalize_url(value)
     if not key: return []
-    rows=c.execute('SELECT w.id,w.title,w.deleted_at,min(l.url) AS source_url FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=? AND w.id<>? GROUP BY w.id ORDER BY w.title,w.id',(OWNER,key,exclude))
-    return [work_summary(c,r) for r in rows]
+    rows=c.execute('SELECT w.id,w.title,w.deleted_at,min(l.url) AS source_url FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=? GROUP BY w.id ORDER BY w.title,w.id',(OWNER,key))
+    matches=[dict(r) for r in rows]
+    # A consolidation retains the source's links in Trash for recovery. They
+    # must not shadow the active destination, including when that destination
+    # is excluded for explicit re-import. True active conflicts still count.
+    active=[r for r in matches if not r['deleted_at']]
+    return [work_summary(c,r) for r in (active or matches) if r['id']!=exclude]
 
 def dimensions(c):
     return [dict(r) for r in c.execute('SELECT * FROM dimensions WHERE owner=? ORDER BY number',(OWNER,))]

@@ -1,4 +1,10 @@
 const messages={
+ 'Invalid Kemono favorites JSON':'Kemonoのお気に入りJSONの形式を確認してください',
+ 'Use Kemono post favorites JSON, not artist favorites':'Kemonoの投稿のお気に入りJSONを選択してください。作者だけの一覧は取り込めません',
+ 'A supported Kemono post has invalid IDs':'Kemonoの対応投稿に不正なIDがあるため、読み込みを中止しました',
+ 'Choose an import source':'取り込み元を選択してください',
+ 'Import file exceeds 12 MB':'取り込みファイルは12 MB以下にしてください',
+
  'DLsite importer supports comics and CG illustrations only':'DLsiteは漫画・CG／イラストに対応しています。音声・ゲームなどは対象外です',
  'DLsite Play series links are not supported; use an individual /work/RJ or /work/BJ link':'DLsite Playのシリーズリンクは未対応です。個別作品の /work/RJ… または /work/BJ… のリンクを指定してください',
  'DLsite product page unavailable; enter metadata manually or use another source':'通常のDLsite商品ページが見つかりません。販売終了などの可能性があります。手動入力するか、別のソースリンクを指定してください',

@@ -319,6 +319,9 @@ class Handler(BaseHTTPRequestHandler):
                         rows=c.execute('SELECT DISTINCT e.* FROM entities e JOIN aliases a ON a.entity_id=e.id WHERE e.owner=? AND e.kind=? AND e.gender=? AND a.name=?',(db.OWNER,kind,item.get('gender','neutral'),item['name'])).fetchall()
                         if len(rows)==1: item.update(db.entity_data(c,rows[0]))
                         if len(rows)>1: result['ambiguities'].append({'kind':kind,'name':item['name'],'gender':item.get('gender','neutral'),'choices':[db.entity_data(c,r) for r in rows]})
+            elif action=='import-list' and self.command=='POST':
+                import import_lists
+                result=import_lists.preview(c,data)
             elif action=='bookmarks' and self.command=='POST':
                 result=importer.bookmarks(data['html'])
                 for item in result:
