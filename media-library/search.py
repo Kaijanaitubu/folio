@@ -1,7 +1,7 @@
 """Quoted query lexer and parameterized OR-before-AND SQL compiler."""
 import re
 
-CATEGORIES = {'manga': '漫画', 'doujinshi': '同人誌', 'artist cg': 'アーティストCG', 'image set': '画像集', 'game cg': 'ゲームCG', 'anime': 'アニメ'}
+CATEGORIES = {'manga': '漫画', 'doujinshi': '同人誌', 'artist cg': 'アーティストCG', 'image set': '画像集', 'game cg': 'ゲームCG'}
 
 def parse(query):
     groups, group, token = [], [], ''
@@ -90,6 +90,8 @@ def compile_query(query, dimensions, owner='local'):
         if field in ('category','language'):
             if field == 'category':
                 value = next((k for k,v in CATEGORIES.items() if v == value), value)
+            if field=='language' and value.strip().casefold() in ('japanese','日本語'):
+                return "fold(trim(w.language)) IN ('japanese','日本語')"
             return f'fold(w.{field})={p(value.casefold())}'
         if field == 'mark':
             exact=value.startswith('='); digits=value[1:] if exact else value

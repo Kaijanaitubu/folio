@@ -236,6 +236,9 @@ def resolve(c,kind,item):
     if rows: return rows[0][0]
     return save_entity(c,dict(item,kind=kind))
 
+def language_name(value):
+    return '日本語' if str(value or '').strip().casefold()=='japanese' else value
+
 def get_work(c,wid,opened=False,include_deleted=False):
     r=c.execute('SELECT * FROM works WHERE id=? AND owner=?',(wid,OWNER)).fetchone()
     if not r or r['deleted_at'] and not include_deleted: raise ValueError('Entry not found; check Trash')
@@ -243,6 +246,7 @@ def get_work(c,wid,opened=False,include_deleted=False):
         c.execute('UPDATE works SET opened=? WHERE id=?',(now(),wid))
         r=c.execute('SELECT * FROM works WHERE id=?',(wid,)).fetchone()
     out=dict(r)
+    out['language']=language_name(out['language'])
     import marks
     out['marks']=marks.numbers(out['mark_bits'])
     for kind in ('author','circle','tag','series','character'):
@@ -278,7 +282,7 @@ def save_work(c,data,wid=None):
     previous=previous[0] if previous else 0
     selected_marks=marks.bits(data['marks']) if 'marks' in data else (previous & 30) | int(bool(data.get('bought'))) if 'bought' in data else previous
     c.execute('INSERT INTO works(id,owner,title,cover,category,language,pages,review,bought,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,cover=excluded.cover,category=excluded.category,language=excluded.language,pages=excluded.pages,review=excluded.review,bought=excluded.bought,updated=excluded.updated',
-        (wid,OWNER,title,url(data.get('cover')),data.get('category',''),str(data.get('language','')),pages,str(data.get('review','')),selected_marks & 1,stamp,stamp))
+        (wid,OWNER,title,url(data.get('cover')),data.get('category',''),str(language_name(data.get('language',''))),pages,str(data.get('review','')),selected_marks & 1,stamp,stamp))
     c.execute('UPDATE works SET mark_bits=? WHERE id=?',(selected_marks,wid))
     c.execute('DELETE FROM work_entities WHERE work_id=?',(wid,))
     for kind in ('author','circle','tag','series','character'):

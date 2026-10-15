@@ -200,6 +200,7 @@ class Handler(BaseHTTPRequestHandler):
                 matches=[w for w in matches if w['id'] not in approved]
                 if matches: raise db.DuplicateSource(matches)
             incoming=importer.import_url(data['url'])
+            if 'language' in incoming: incoming['language']=db.language_name(incoming['language'])
         with db.transaction() as c:
             if action=='config': result={'token':TOKEN,'dimensions':db.dimensions(c),'symbols':db.SYMBOLS,'categories':CATEGORIES,'marks':marks.definitions(c)}
             elif action=='mark-labels' and self.command=='PUT': result={'marks':marks.save_labels(c,data)}
