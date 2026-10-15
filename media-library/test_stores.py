@@ -30,6 +30,13 @@ BOOK_HTML='''<h1>Commercial title</h1><dl><dt>カテゴリー</dt><dd>漫画</dd
 <meta property="og:image" content="https://ebook-assets.dmm.co.jp/digital/e-book/book123/book123pl.jpg">'''
 
 class AdapterTests(unittest.TestCase):
+    def test_legacy_leading_zero_fanza_purchase_id(self):
+        url='https://www.dmm.co.jp/dc/doujin/-/detail/=/cid=d_053943/'
+        self.assertEqual(stores.location(url),('fanza-doujin','d_053943',''))
+        self.assertEqual(stores.canonical(url),url)
+        self.assertTrue(stores.valid_image('https://doujin-assets.dmm.co.jp/digital/comic/d_053943/d_053943pr.jpg'))
+        self.assertTrue(importer.bookmarks('<a href="'+url+'">Old purchase</a>')[0]['supported'])
+
     def test_play_identity_and_query_slash_variants(self):
         play='https://play.dlsite.com/work/RJ01097714?utm=x#sample'
         self.assertEqual(stores.canonical(play),stores.canonical(DL))

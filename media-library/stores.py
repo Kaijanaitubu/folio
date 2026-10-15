@@ -22,7 +22,7 @@ def location(value):
             m=re.fullmatch(r'/(home|maniax|girls|books)(?:-touch)?/work/=/product_id/((?:RJ|BJ)[0-9]{6,12})\.html/?',u.path,re.I)
             if m:return ('dlsite',m[2].upper(),m[1].lower())
         if u.hostname in ('www.dmm.co.jp','dmm.co.jp'):
-            m=re.fullmatch(r'/dc/doujin/-/detail/=/cid=(d_[1-9][0-9]{0,11})/?',u.path)
+            m=re.fullmatch(r'/dc/doujin/-/detail/=/cid=(d_(?=0*[1-9])[0-9]{1,12})/?',u.path)
             if m:return ('fanza-doujin',m[1],'')
         if u.hostname in BOOK_HOSTS:
             m=re.fullmatch(r'/product/([1-9][0-9]{0,11})/([a-z0-9_]{1,80})/?',u.path)
@@ -62,7 +62,7 @@ def valid_image(value):
         u=urlsplit(value)
         if u.scheme!='https' or u.hostname not in IMAGE_HOSTS or u.port not in (None,443) or u.username or u.password or u.query or u.fragment:return False
         if u.hostname=='img.dlsite.jp':return bool(re.fullmatch(r'/modpub/images2/work/(doujin|books)/((?:RJ|BJ)[0-9]{6,12})/((?:RJ|BJ)[0-9]{6,12})_img_main\.(jpg|webp|png)',u.path))
-        if u.hostname=='doujin-assets.dmm.co.jp':return bool(re.fullmatch(r'/digital/comic/(d_[1-9][0-9]{0,11})/\1pr\.(jpg|webp|png)',u.path))
+        if u.hostname=='doujin-assets.dmm.co.jp':return bool(re.fullmatch(r'/digital/comic/(d_(?=0*[1-9])[0-9]{1,12})/\1pr\.(jpg|webp|png)',u.path))
         return bool(re.fullmatch(r'/digital/e-book/([a-z0-9_]{1,80})/\1(?:pl|ps)\.(jpg|webp|png)',u.path))
     except (ValueError,TypeError):return False
 
