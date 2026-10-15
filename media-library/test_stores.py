@@ -93,7 +93,30 @@ class AdapterTests(unittest.TestCase):
         d=stores.parse_page(DL_HTML.replace('マンガ','CG・イラスト'),DL)
         self.assertEqual(d['category'],'artist cg');self.assertEqual(d['circle'],[{'name':'Circle'}])
         self.assertEqual(len(d['author']),2);self.assertEqual(len(d['tag']),2)
-        with self.assertRaises(ValueError):stores.parse_page(FANZA_HTML.replace('コミック','CG・イラスト'),FANZA)
+        self.assertEqual(stores.parse_page(FANZA_HTML.replace('コミック','CG・イラスト'),FANZA)['category'],'artist cg')
+    def test_fanza_cg_scoped_metadata_cover_and_no_inferred_page_count(self):
+        html=FANZA_HTML.replace('コミック','CG').replace('/digital/comic/','/digital/cg/').replace('35ページ','画像39枚+α')
+        result=stores.parse_page(html,FANZA)
+        self.assertEqual(result['category'],'artist cg');self.assertIsNone(result['pages'])
+        self.assertEqual(result['title'],'作品 & 第2巻');self.assertEqual(result['source_label'],'FANZA同人')
+        self.assertEqual(result['author'],[{'name':'Alice / Smith'},{'name':'Bob'}])
+        self.assertEqual(result['circle'],[{'name':'Circle'}]);self.assertEqual(result['tag'],[{'name':'Digital','gender':'neutral'}])
+        self.assertEqual(result['cover'],'https://doujin-assets.dmm.co.jp/digital/cg/d_123/d_123pr.jpg')
+        self.assertEqual(result['warnings'],[])
+        for kind in ('CG集','CG・イラスト','イラスト','イラスト集'):
+            self.assertEqual(stores.parse_page(html.replace('<a>CG</a>',f'<a>{kind}</a>'),FANZA)['category'],'artist cg')
+        for kind in ('ゲーム','ボイス','動画','CG動画','CGゲーム'):
+            with self.assertRaisesRegex(ValueError,'FANZA importer supports'):
+                stores.parse_page(html.replace('<a>CG</a>',f'<a>{kind}</a>'),FANZA)
+        # A related recommendation must not turn an unsupported product into CG.
+        with self.assertRaises(ValueError):stores.parse_page(html.replace('<a>CG</a>','<a>ボイス</a>')+'<dl><dt>作品形式</dt><dd>CG</dd></dl>',FANZA)
+    def test_fanza_cg_cover_relay_keeps_product_and_image_boundaries(self):
+        value='https://doujin-assets.dmm.co.jp/digital/cg/d_398061/d_398061pr.jpg'
+        self.assertTrue(stores.valid_image(value))
+        for bad in (value+'?token=x',value+'#x',value.replace('cg/','game/'),value.replace('pr.jpg','jp-001.jpg'),value.replace('d_398061pr','d_398062pr'),value.replace('co.jp/','co.jp.evil/')):
+            self.assertFalse(stores.valid_image(bad),bad)
+        with patch.object(cover_relay,'CACHE',cover_relay.MemoryCache()),patch('stores.fetch_image',return_value=('image/jpeg',b'fixture')) as fetch:
+            self.assertEqual(cover_sources.load(value),('image/jpeg',b'fixture'));cover_sources.load(value);fetch.assert_called_once()
     def test_fanza_scope_and_book_jsonld(self):
         d=stores.parse_page(FANZA_HTML,FANZA);self.assertEqual(d['pages'],35);self.assertEqual(len(d['author']),2);self.assertEqual(d['circle'],[{'name':'Circle'}])
         d=stores.parse_page(BOOK_HTML,BOOK);self.assertEqual(d['pages'],228);self.assertEqual(d['author'],[{'name':'Author'}]);self.assertEqual(d['circle'],[])
@@ -129,6 +152,27 @@ class AdapterTests(unittest.TestCase):
 
 class WorkflowTests(unittest.TestCase):
     setUp=fixture.FeatureHTTPTests.setUp;tearDown=fixture.FeatureHTTPTests.tearDown;request=fixture.FeatureHTTPTests.request;api=fixture.FeatureHTTPTests.api
+    def test_fanza_cg_individual_batch_and_explicit_reimport(self):
+        html=FANZA_HTML.replace('コミック','CG').replace('/digital/comic/','/digital/cg/').replace('35ページ','画像39枚+α')
+        value=FANZA+'?utm_source=share'
+        with patch('stores.fetch',return_value=html):
+            incoming=self.api('import','POST',{'url':value})
+            self.assertEqual(incoming['category'],'artist cg');self.assertTrue(incoming['cover'].startswith('https://doujin-assets.dmm.co.jp/digital/cg/'))
+            work=self.api('works','POST',dict(incoming,links=[{'url':value,'is_primary':True}],review='Keep'))
+            self.assertEqual(self.api('source-check','POST',{'url':FANZA})['matches'][0]['id'],work['id'])
+            self.assertEqual(self.api('import','POST',{'url':FANZA,'exclude':work['id']})['category'],'artist cg')
+            with patch('cover_sources.load',return_value=('image/jpeg',b'fixture')) as cover:
+                code,_,raw=self.request('/api/covers/preview','POST',{'url':incoming['cover']})
+                self.assertEqual(code,200);self.assertEqual(raw,b'fixture');cover.assert_called_once_with(incoming['cover'])
+        with db.transaction() as c:
+            url=FANZA.replace('d_123','d_124')
+            jid=import_jobs.create(c,{'items':[{'url':url,'label':'CG file title'}],'title_mode':'bookmark'})['id']
+            item=dict(c.execute('SELECT * FROM job_items WHERE job_id=?',(jid,)).fetchone())
+        with patch('stores.fetch',return_value=html.replace('d_123','d_124')):import_jobs.process_item(item)
+        with db.transaction() as c:
+            result=c.execute('SELECT * FROM job_items WHERE id=?',(item['id'],)).fetchone();self.assertEqual(result['status'],'added')
+            saved=db.get_work(c,result['work_id']);self.assertEqual(saved['category'],'artist cg');self.assertEqual(saved['title'],'CG file title')
+            self.assertEqual(saved['links'][0]['url'],url);self.assertEqual(saved['review'],'')
     def test_play_workflow_preserves_source_and_existing_regular_url(self):
         play='https://play.dlsite.com/work/RJ01097714?utm=x'
         with patch('stores.fetch',return_value=DL_HTML):

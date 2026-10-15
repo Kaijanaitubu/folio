@@ -62,7 +62,7 @@ def valid_image(value):
         u=urlsplit(value)
         if u.scheme!='https' or u.hostname not in IMAGE_HOSTS or u.port not in (None,443) or u.username or u.password or u.query or u.fragment:return False
         if u.hostname=='img.dlsite.jp':return bool(re.fullmatch(r'/modpub/images2/work/(doujin|books)/((?:RJ|BJ)[0-9]{6,12})/((?:RJ|BJ)[0-9]{6,12})_img_main\.(jpg|webp|png)',u.path))
-        if u.hostname=='doujin-assets.dmm.co.jp':return bool(re.fullmatch(r'/digital/comic/(d_(?=0*[1-9])[0-9]{1,12})/\1pr\.(jpg|webp|png)',u.path))
+        if u.hostname=='doujin-assets.dmm.co.jp':return bool(re.fullmatch(r'/digital/(?:comic|cg)/(d_(?=0*[1-9])[0-9]{1,12})/\1pr\.(jpg|webp|png)',u.path))
         return bool(re.fullmatch(r'/digital/e-book/([a-z0-9_]{1,80})/\1(?:pl|ps)\.(jpg|webp|png)',u.path))
     except (ValueError,TypeError):return False
 
@@ -209,9 +209,9 @@ def parse_page(html,value):
         if not name:return
         if len(name)>4096 or len(out[field])>=2000:raise ValueError('Store metadata exceeds item limit')
         if not any(e['name']==name for e in out[field]):out[field].append({'name':name,**({'gender':'neutral'} if field=='tag' else {})})
-    comic_type=False
+    supported_type=False
     def cell(key,n):
-        nonlocal comic_type
+        nonlocal supported_type
         names=[a.text() for a in n.find('a') if a.text()]
         if key in ('作者','著者','作家'):
             for name in names or [n.text()]:add('author',name)
@@ -227,8 +227,11 @@ def parse_page(html,value):
                 cg='CG・イラスト' in n.text()
                 if not cg and not any(s in n.text() for s in ('マンガ','漫画','コミック','同人誌')):raise ValueError('DLsite importer supports comics and CG illustrations only')
                 if cg:out['category']='artist cg'
-            if kind=='fanza-doujin' and 'コミック' not in n.text():raise ValueError('This importer supports comic products only')
-            comic_type=any(s in n.text() for s in ('マンガ','漫画','コミック','同人誌')) or kind=='dlsite' and cg
+            if kind=='fanza-doujin':
+                cg=re.sub(r'\s+','',n.text()) in ('CG','CG集','CG・イラスト','イラスト','イラスト集')
+                if 'コミック' not in n.text() and not cg:raise ValueError('FANZA importer supports comics and CG illustrations only')
+                if cg:out['category']='artist cg'
+            supported_type=any(s in n.text() for s in ('マンガ','漫画','コミック','同人誌')) or kind in ('dlsite','fanza-doujin') and cg
     if kind=='dlsite':
         for ident in ('work_outline','work_maker'):
             for table in root.find(ident=ident):
@@ -260,7 +263,7 @@ def parse_page(html,value):
                     for name in names if isinstance(names,list) else [names]:add('author',str(name))
                 genres=book.get('genre') or []
                 for name in genres if isinstance(genres,list) else [genres]:add('tag',str(name))
-    if not comic_type:raise ValueError('This importer supports comic products only')
+    if not supported_type:raise ValueError('FANZA importer supports comics and CG illustrations only' if kind=='fanza-doujin' else 'This importer supports comic products only')
     for meta in root.find('meta'):
         image=meta.attrs.get('content','')
         if meta.attrs.get('property')=='og:image' and valid_image(image):

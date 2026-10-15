@@ -1,4 +1,5 @@
 const messages={
+ 'FANZA importer supports comics and CG illustrations only':'FANZA同人はコミック・CG／イラストに対応しています。音声・ゲーム・動画などは対象外です',
  'Invalid Kemono favorites JSON':'Kemonoのお気に入りJSONの形式を確認してください',
  'Use Kemono post favorites JSON, not artist favorites':'Kemonoの投稿のお気に入りJSONを選択してください。作者だけの一覧は取り込めません',
  'A supported Kemono post has invalid IDs':'Kemonoの対応投稿に不正なIDがあるため、読み込みを中止しました',

@@ -333,3 +333,13 @@ Further follow-up: moved selection exit to a floating 44 px X above the utility 
 - Original candidates use validated FANBOX public_id / Patreon post ID, with no original-site content requests or claim of live availability. Individual selection, link-only reimport, secondary attachment, preserved primary/ratings/review, cancellation/stale-draft handling and matching original-link aliases passed focused Python/JS tests. Conflicting active/Trash originals remain registered to their existing work and produce warnings. URL matches can supply a candidate even when the title differs; user confirmation remains required.
 - Windows focused Python tests: 68 passed. Linux full suite: 218 tests successful with one Windows-only skip. All nine frontend flow scripts and the new Pawchive exporter/selection script passed. Documentation links and diff whitespace checked.
 - VPS backup library-20261015-000711-083571.sqlite3 preceded restart. No running import or connected API key. Integrity ok, no FK errors, 4,287 active / 154 Trash retained. Migration 13 updated original-link comparison keys/claims and added the job option; all common content columns matched the backup when excluding expected migration/claim changes and link url_key. Every pre-existing job keeps include_original_links=0; paused jobs remained paused. Live HTTPS returned FANBOX and Patreon original candidates and matched new frontend assets. No production works were created by testing. [Specification](PAWCHIVE-FAVORITES-ORIGINALS-SPEC.md).
+
+
+## 2026-10-15 F-024：FANZA同人CG
+
+- 指定商品の実HTMLを標準のゲスト年齢確認経路で取得し、作品形式CGとdigital/cgの主画像URLを確認。ブラウザのログインCookie・購入情報を使用していない。
+- 修正前は「comic products only」で拒否。修正後はartist cg、サークル1・タグ8・ページ数null。表紙JPEGをRAM中継で取得（55,230 bytes）し、画像をディスク保存していない。ライブラリにサンプル登録は行わない。
+- `python -m unittest test_stores`：17件成功。分類、画像枚数の非推定、作者・サークル・タグ、別商品／非主画像／任意ホストの拒否、キャッシュ、個別・バッチ・再取込、既存DLsite・ブックス・コミックを確認。
+
+- VPS反映前にSQLiteバックアップを作成し、Folio／共有サーバーを更新。VPSからも同じ指定CG商品の実メタデータと表紙JPEG（55,230 bytes）取得に成功、警告なし。データ移行・作品の追加／変更は行っていない。
+- JSの既存ソース遷移・再インポートの回帰チェックも成功。
