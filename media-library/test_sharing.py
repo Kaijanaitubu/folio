@@ -58,3 +58,19 @@ class SharingTests(unittest.TestCase):
         p=self.share()
         with db.transaction() as c:c.execute("UPDATE shared_pages SET owner='other' WHERE token=?",(p['token'],))
         self.assertEqual(self.request('/api/shares/'+self.work['id']+'/'+p['token'],'DELETE')[0],400)
+
+    def test_revoked_shares_hidden_and_snapshot_style_and_gender(self):
+        self.work['tag']=[{'name':'Female tag','gender':'female'},{'name':'Male tag','gender':'male'},{'name':'Neutral tag','gender':'neutral'}]
+        self.work['cover']='https://example.com/image.jpg'
+        self.work=self.api('works/'+self.work['id'],'PUT',self.work)
+        p=self.share();path='/s/'+p['token']
+        text=self.public_get(path)[2].decode()
+        self.assertIn('Female tag ♀',text);self.assertIn('Male tag ♂',text)
+        self.assertIn('class="tag female"',text);self.assertIn('class="tag male"',text)
+        self.assertNotIn('Neutral tag ♀',text);self.assertNotIn('Neutral tag ♂',text)
+        self.assertIn('<a href="https://example.com/work" target="_blank" rel="noopener noreferrer nofollow"><img',text)
+        code,headers,style=self.public_get(path+'/style.css');self.assertEqual(code,200);self.assertIn('text/css',headers['Content-Type'])
+        self.assertIn(b'grid-template-columns',style)
+        self.api('shares/'+self.work['id']+'/'+p['token'],'DELETE')
+        self.assertEqual(self.api('shares/'+self.work['id'])['items'],[])
+        self.assertEqual(self.public_get(path+'/style.css')[0],404)

@@ -123,3 +123,6 @@ summary { cursor: pointer; overflow-wrap: anywhere; }
 .detail-cover .cover:has(>img){aspect-ratio:auto}
 .detail-cover .cover>img{display:block;width:100%;height:auto;object-fit:contain}
 @media(max-width:700px){.detail-cover{width:100%;max-width:none}}
+
+/* Compact work detail actions retain touch targets on narrow screens. */
+.detail-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:nowrap}.detail-back{min-width:0}.detail-back span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.detail-actions{display:flex;align-items:center;gap:4px;flex:none;flex-wrap:nowrap}.detail-actions .iconbtn{width:42px;height:44px;min-width:42px;min-height:44px;padding:10px;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.detail-actions .detail-delete{color:var(--danger)}.detail-actions .iconbtn:hover{background:var(--soft)}
