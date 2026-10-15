@@ -87,6 +87,8 @@ def init():
     with transaction() as c: tag_policy.init(c)
     import import_jobs
     with transaction() as c: import_jobs.init(c)
+    import primary_names
+    with transaction() as c: primary_names.migrate(c)
 
 def migrate_imports():
     """Rebuild works with foreign keys disabled only on this migration connection."""
@@ -171,6 +173,11 @@ def entity_data(c,row):
     out=dict(row)
     out['aliases']=[a[0] for a in c.execute('SELECT name FROM aliases WHERE entity_id=? ORDER BY name',(out['id'],))]
     out['display_name']=out['display_alias'] or out['name']
+    # Conflicting legacy display choices await an explicit merge decision. Show the
+    # former canonical name alongside aliases even before that decision is made.
+    out['primary_name_pending']=bool(out['display_alias'])
+    if out['display_alias']:
+        out['aliases']=sorted((set(out['aliases']) | {out['name']}) - {out['display_alias']})
     return out
 
 def entity_list(c,kind=None,q='',sort='name_asc',offset=0,limit=300,paged=False):
@@ -193,6 +200,8 @@ def entity_list(c,kind=None,q='',sort='name_asc',offset=0,limit=300,paged=False)
     return rows
 
 def save_entity(c,data,eid=None):
+    import primary_names
+    data=primary_names.normalize(c,data,eid)
     kind=data.get('kind'); name=str(data.get('name','')).strip(); gender=data.get('gender','neutral') if kind=='tag' else 'neutral'
     if kind not in ('tag','author','circle','series','character') or not name: raise ValueError('Metadata needs a name and valid type')
     if gender == 'none': gender = 'neutral'
@@ -201,10 +210,7 @@ def save_entity(c,data,eid=None):
     old=c.execute('SELECT * FROM entities WHERE id=? AND owner=?',(eid,OWNER)).fetchone()
     if old and old['kind']!=kind: raise ValueError('Metadata type cannot change')
     aliases=set(str(a).strip() for a in data.get('aliases',[]) if str(a).strip())
-    display_alias=str(data.get('display_alias',old['display_alias'] if old else '')).strip()
-    if display_alias and display_alias not in aliases:
-        if 'display_alias' in data: raise ValueError('Choose a display alias from the aliases')
-        display_alias=''
+    display_alias=''
     sort_reading=str(data.get('sort_reading',old['sort_reading'] if old else '')).strip()
     c.execute('INSERT INTO entities(id,owner,kind,name,gender,display_alias,created,sort_reading) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,gender=excluded.gender,display_alias=excluded.display_alias,sort_reading=excluded.sort_reading',(eid,OWNER,kind,name,gender,display_alias,now(),sort_reading))
     c.execute('DELETE FROM aliases WHERE entity_id=?',(eid,))

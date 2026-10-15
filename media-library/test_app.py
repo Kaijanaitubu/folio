@@ -270,13 +270,13 @@ class LibraryTests(unittest.TestCase):
             with self.subTest(kind=kind):
                 w=self.save({'title':'Display '+kind,kind:[{'name':'blue archive','aliases':['ブルーアーカイブ'],'display_alias':'ブルーアーカイブ','gender':'female'}]})
                 item=w[kind][0]
-                self.assertEqual(item['name'],'blue archive')
+                self.assertEqual(item['name'],'ブルーアーカイブ');self.assertIn('blue archive',item['aliases'])
                 self.assertEqual(item['display_name'],'ブルーアーカイブ')
                 self.assertEqual(self.search(kind+':"blue archive"')['total'],1)
                 self.assertEqual(self.search(kind+':ブルーアーカイブ')['total'],1)
                 with db.transaction() as c:
                     self.assertEqual(db.resolve(c,kind,{'name':'blue archive','gender':'female'}),item['id'])
-                    db.save_entity(c,dict(item,kind=kind,display_alias=''),item['id'])
+                    db.save_entity(c,dict(item,kind=kind,display_alias='blue archive'),item['id'])
                     self.assertEqual(db.get_work(c,w['id'])[kind][0]['display_name'],'blue archive')
     def test_display_alias_validation_and_removal(self):
         with self.assertRaises(ValueError),db.transaction() as c:

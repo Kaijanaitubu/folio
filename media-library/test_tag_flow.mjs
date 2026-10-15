@@ -36,6 +36,21 @@ for(const language of ['en','ja']){
  const count=h.applied.length;h.ui.workEditor(original,e=>h.applied.push(e),()=>{});h.$('#work-tag-cancel').onclick();assert.equal(h.applied.length,count);
  h.respond=()=>original;h.ui.workEditor(original,()=>{},()=>{});await h.$('#work-tag-shared').onclick();
  assert.ok(h.$('#metadata-name'));assert.equal(h.$('#metadata-name').value,'Archive');assert.equal(h.$('#metadata-gender').value,'neutral');assert.ok(h.$('#metadata-merge'));
+ // Selecting a primary name swaps the draft and preserves the previous name.
+ h.ui.editor(original,id=>h.applied.push(id));const beforePrimary=h.calls.length;
+ h.$('#metadata-display').onchange({target:{value:'Blue'}});
+ assert.equal(h.$('#metadata-name').value,'Blue');assert.equal(h.$('#metadata-aliases').value,'Archive');assert.equal(h.calls.length,beforePrimary);
+ h.$('#metadata-display').onchange({target:{value:'Archive'}});
+ assert.equal(h.$('#metadata-name').value,'Archive');assert.equal(h.$('#metadata-aliases').value,'Blue');
+ h.$('#metadata-display').onchange({target:{value:'Blue'}});
+ h.respond=()=>({id:'none'});h.$('#metadata-form').onsubmit(event);await tick();
+ assert.equal(h.calls.at(-1).body.name,'Blue');assert.deepEqual(h.calls.at(-1).body.aliases,['Archive']);assert.equal(h.calls.at(-1).body.display_alias,'');
+ h.ui.editor(original,()=>{});h.$('#metadata-display').onchange({target:{value:'Blue'}});const beforeCancel=h.calls.length;h.$('#metadata-cancel').onclick();assert.equal(h.calls.length,beforeCancel);assert.equal(original.name,'Archive');
+ for(const kind of ['author','circle','series','character']){
+  h.ui.editor({...original,kind},()=>{});assert.equal(h.$('#metadata-gender'),null);
+  h.$('#metadata-display').onchange({target:{value:'Blue'}});h.respond=()=>({id:kind});h.$('#metadata-form').onsubmit(event);await tick();
+  assert.equal(h.calls.at(-1).body.kind,kind);assert.equal(h.calls.at(-1).body.name,'Blue');assert.deepEqual(h.calls.at(-1).body.aliases,['Archive']);
+ }
  h.ui.editor(null,id=>h.applied.push(id));h.$('#metadata-name').value='Blue';
  h.respond=()=>{throw Object.assign(Error('collision'),{tag_conflicts:[{name:'Blue',choices:[original]}],signature:'snapshot'})};
  const submit=h.$('#metadata-form').onsubmit(event);await tick();assert.ok(h.choices.length);await h.choices[0].onclick();await tick();await submit;

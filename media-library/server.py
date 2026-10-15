@@ -258,7 +258,7 @@ class Handler(BaseHTTPRequestHandler):
                     else: result=db.entity_list(c,g('kind') or None,g('q'),g('sort','name_asc'),max(0,int(g('offset','0'))),min(300,max(1,int(g('limit','300')))),g('paged')=='1')
                 elif self.command=='POST' and len(parts)>2 and parts[2]=='merge-preview': result=tag_policy.merge_preview(c,ident,data['target'])
                 elif self.command=='POST' and len(parts)>2 and parts[2]=='merge': result=tag_policy.merge(c,ident,data['target'],data.get('signature'),data.get('metadata'))
-                elif self.command=='POST' and ident=='attribute': result=[e for e in tag_policy.matches(c,data.get('name',''),data.get('gender','neutral')) if tag_policy.key(e['name'])==tag_policy.key(data.get('name',''))]
+                elif self.command=='POST' and ident=='attribute': result=tag_policy.attribute_matches(c,data)
                 elif self.command=='POST' and ident=='check': result={'conflicts':tag_policy.check(c,data,data.get('exclude'))}
                 elif self.command in ('POST','PUT'): result={'id':tag_policy.save(c,data,ident)}
                 elif self.command=='DELETE': c.execute('DELETE FROM entities WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}

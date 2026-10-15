@@ -69,8 +69,8 @@ class TagTests(unittest.TestCase):
             preview=tags.merge_preview(c,a['id'],b['id']);result=tags.merge(c,a['id'],b['id'],preview['signature'])
             self.assertEqual(result['count'],2);self.assertEqual(tags.entity_id(c,a['id']),b['id'])
             merged=tags.entity_state(c,b['id']);self.assertEqual(merged['gender'],'female')
-            self.assertEqual(merged['display_alias'],'target alias');self.assertEqual(merged['sort_reading'],'target reading')
-            self.assertEqual(merged['aliases'],['source alias','target alias'])
+            self.assertEqual(merged['name'],'target alias');self.assertEqual(merged['display_alias'],'');self.assertEqual(merged['sort_reading'],'target reading')
+            self.assertEqual(merged['aliases'],['sample','source alias'])
             self.assertEqual(len(db.get_work(c,w['id'])['tag']),1)
             self.assertFalse(features.restore_preview(c,[trash['id']])['missing'])
             self.assertEqual(db.resolve(c,'tag',a),b['id'])
@@ -78,7 +78,7 @@ class TagTests(unittest.TestCase):
             self.assertEqual(tags.entity_id(c,a['id']),a['id'])
             self.assertEqual(len(db.get_work(c,w['id'])['tag']),2)
             self.assertEqual(db.get_work(c,trash['id'],include_deleted=True)['tag'][0]['id'],a['id'])
-            self.assertEqual(tags.entity_state(c,b['id'])['aliases'],['target alias'])
+            self.assertEqual(tags.entity_state(c,b['id'])['aliases'],['sample'])
     def test_merge_edited_attribute_collision_and_target_settings(self):
         with db.transaction() as c:
             a=self.entity(c,'same');b=self.entity(c,'same','female')

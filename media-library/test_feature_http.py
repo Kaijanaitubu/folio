@@ -59,6 +59,19 @@ class FeatureHTTPTests(unittest.TestCase):
             result=self.api('import','POST',{'url':'https://hitomi.la/reader/123.html'})
         self.assertEqual(len(result['ambiguities'][0]['choices']),2)
 
+    def test_primary_name_promotion_persists_and_old_alias_resolves_through_http(self):
+        ident=self.api('entities','POST',{'kind':'tag','name':'Archive','aliases':['Blue']})['id']
+        female=self.api('entities','POST',{'kind':'tag','name':'Archive','gender':'female'})['id']
+        work=self.api('works','POST',{'title':'Example','tag':[{'id':ident}]})
+        self.api('entities/'+ident,'PUT',{'kind':'tag','name':'Blue','aliases':['Archive']})
+        item=self.api('entities/'+ident)
+        self.assertEqual(item['name'],'Blue');self.assertEqual(item['aliases'],['Archive'])
+        self.assertEqual(self.api('works/'+work['id'])['tag'][0]['id'],ident)
+        self.assertEqual(self.api('entities/attribute','POST',dict(item,gender='female'))[0]['id'],female)
+        with patch('importer.import_url',return_value={'title':'Imported','tag':[{'name':'Archive'}]}):
+            imported=self.api('import','POST',{'url':'https://hitomi.la/reader/123.html'})
+        self.assertEqual(imported['tag'][0]['id'],ident);self.assertEqual(imported['tag'][0]['name'],'Blue')
+
     def test_new_endpoints_require_mutation_token(self):
         for endpoint in ('batch/preview','saved-searches','trash/restore','history/missing/undo','covers/preview'):
             self.assertEqual(self.request('/api/'+endpoint,'POST',{},token=False)[0],403)

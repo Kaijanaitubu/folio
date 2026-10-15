@@ -42,15 +42,26 @@ def signature(value):
 
 class Conflict(ValueError):
     def __init__(self, conflicts):
-        super().__init__('Tag name or alias already belongs to another tag')
+        super().__init__('Metadata name or alias already belongs to another entry')
         self.conflicts = conflicts
         self.signature = signature(conflicts)
 
 
 def check(c, data, ident=None):
-    if data.get('kind') != 'tag': return []
+    import primary_names
+    data = primary_names.normalize(c, data, ident)
+    if data.get('kind') != 'tag':
+        # Other metadata already has unique primary names. Offer a reviewed merge
+        # instead of surfacing a SQLite error when promoting an existing alias.
+        rows=c.execute('''SELECT e.*, (SELECT count(*) FROM work_entities we JOIN works w
+          ON w.id=we.work_id WHERE we.entity_id=e.id AND w.deleted_at IS NULL) AS uses
+          FROM entities e WHERE e.owner=? AND e.kind=? AND e.name=? AND e.id<>?''',
+          (db.OWNER,data.get('kind'),data['name'],ident or ''))
+        choices=[db.entity_data(c,row) for row in rows]
+        return [{'name':data['name'],'gender':'neutral','choices':choices}] if choices else []
     old = c.execute('SELECT * FROM entities WHERE id=? AND owner=?', (ident, db.OWNER)).fetchone() if ident else None
     old_aliases = {key(r[0]) for r in c.execute('SELECT name FROM aliases WHERE entity_id=?', (ident,))} if old else set()
+    if old: old_aliases.add(key(old['name']))
     gender = data.get('gender', 'neutral')
     if gender == 'none': gender = 'neutral'
     changed = not old or old['gender'] != gender
@@ -69,10 +80,22 @@ def save(c, data, ident=None):
     if not c.in_transaction: c.execute('BEGIN IMMEDIATE')
     if ident and not c.execute('SELECT 1 FROM entities WHERE id=? AND owner=?',(ident,db.OWNER)).fetchone():
         raise ValueError('Metadata changed; reload before editing')
+    import primary_names
+    data = primary_names.normalize(c, data, ident)
     collisions = check(c, data, ident)
     if collisions and (not data.get('allow_collision') or data.get('collision_signature') != signature(collisions)):
         raise Conflict(collisions)
     return db.save_entity(c, data, ident)
+
+
+def attribute_matches(c, data):
+    """A primary-name switch must not break work-scoped attribute replacement."""
+    names = [data.get('name', ''), *data.get('aliases', [])]
+    choices = {}
+    for name in names:
+        for item in matches(c, name, data.get('gender', 'neutral')):
+            choices[item['id']] = item
+    return sorted(choices.values(), key=lambda item:(key(item['name']), item['id']))
 
 
 def resolve_tags(c, data):
@@ -126,7 +149,8 @@ def merge(c, source, target, expected=None, data=None):
     if data:
         if data.get('kind') != original['kind']: raise ValueError('Metadata type cannot change')
         if not str(data.get('name','')).strip(): raise ValueError('Metadata needs a name and valid type')
-        effective = dict(original, name=str(data['name']).strip(), aliases=[str(n).strip() for n in data.get('aliases',[]) if str(n).strip()])
+        import primary_names
+        effective = primary_names.normalize(c, dict(original, **data), source)
     added = set(effective['aliases']) | set(original['aliases']) | {effective['name'],original['name']}
     names = set(before['target']['aliases']) | {n for n in added if key(n) != key(before['target']['name'])}
     c.execute('DELETE FROM aliases WHERE entity_id=?', (target,))

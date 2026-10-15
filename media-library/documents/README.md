@@ -2,6 +2,8 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
+Use **Choose primary name** in any metadata editor to promote an alias; the former primary remains an alias for search and imports. Existing display choices migrate automatically, while conflicting entries await a reviewed merge. See [tag and primary-name behavior](TAG-SPEC.md).
+
 A working implementation of Personal Media Database Requirements v2.0, with PC hosting and private Linux VPS deployment. Uses Python's standard library, SQLite, and browser JavaScript. No package installation, paid hosting, Node build, or external account is required.
 
 Future requests, hosting options, and implementation status are tracked in the [development roadmap (Japanese)](ROADMAP.md). Update that file as proposals are discussed, approved, implemented, or deferred.
