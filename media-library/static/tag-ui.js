@@ -2,6 +2,8 @@ export const tagEn={neutral:'None',gender:'Attribute',workTag:'Tag on this work'
 export const tagJa={neutral:'未指定（none）',gender:'属性',workTag:'この作品のタグ',workTagHint:'属性変更はこの作品のタグだけを差し替えます。新しいタグは作品を保存した時に作成されます。',editSharedTag:'タグ自体を編集',sharedTagTitle:'共有タグを編集',tagCollision:'タグ名・別名が既に存在します',tagCollisionHint:'同じ属性の既存タグに、この名前が登録されています。既存タグを使う・別々に残す・共有タグを統合する方法を選べます。',useExistingTag:'既存タグを使う',keepSeparateTags:'別々のタグとして保存',tagReview:'タグを選択',tagReviewHint:'この名前に一致するタグが複数あります。作品に付ける既存タグを選択してください。',tag_review:'タグの確認待ち',metadata_mergeOperation:'メタデータの統合',mergePreviewHint:'ゴミ箱を含む、統合元を使う全作品のメタデータが差し替わります。統合先の主名称・属性・並べ替え用の読みを維持します。統合は操作履歴から取り消せます。',mergeCount:'影響する作品数',mergeResult:'統合しました',sharedSaved:'共有タグを保存しました',reviewMerge:'統合内容を確認',historyHint:'作品編集・一括編集・評価換算・メタデータ統合は30日間取り消せます。後から対象情報が変更された場合は取り消せません。その他の辞書編集・取込ジョブは対象外です。'};
 
 // Shared by every metadata editor: choosing a name swaps the editable draft only.
+Object.assign(tagEn,{pendingMetadataHint:'This item has not been saved yet. Choose existing metadata to use on this work. No shared names or aliases will be changed.',noMergeTargets:'No matching metadata. Try another name or alias.'});
+Object.assign(tagJa,{pendingMetadataHint:'この項目はまだ保存されていません。この作品で使う既存のメタデータを選択します。共有の名前や別名は変更しません。',noMergeTargets:'一致するメタデータがありません。名前や別名を変えて検索してください。'});
 export function bindPrimaryNames($,esc,t){
  const name=$('#metadata-name'),input=$('#metadata-aliases'),select=$('#metadata-display');
  const aliases=()=>[...new Set(input.value.split('\n').map(s=>s.trim()).filter(s=>s&&s!==name.value.trim()))];
@@ -35,30 +37,42 @@ export function createTagUI({$, $$, api, t, esc, btn, modal, closeModal, dialog,
   });
  }
  function mergeEditor(item,onSave){
-  modal(`<h2>${esc(t('merge'))}: ${esc(label(item))}</h2><p>${esc(t('mergeText'))}</p><div id="merge-error"></div><div class="stack"><input id="merge-query" placeholder="${esc(t('searchMetadata'))}"><label><span>${esc(t('mergeInto'))}</span><select id="merge-target"></select></label></div><div class="actions tag-actions">${btn(t('cancel'),'merge-cancel')}${btn(t('reviewMerge'),'merge-next','primary')}</div>`);
-  let sequence=0,timer;const root=$('#merge-query');
-  const load=async()=>{try{const seq=++sequence, candidates=await api('entities?kind='+item.kind+'&q='+encodeURIComponent(root.value));if(seq!==sequence||!root.isConnected)return;
-   const targets=candidates.filter(e=>e.id!==item.id);
-   $('#merge-target').innerHTML=targets.map(e=>`<option value="${e.id}">${esc(info(e))}</option>`).join('');$('#merge-next').disabled=!targets.length;
-  }catch(e){if(root.isConnected)error($('#merge-error'),e)}};
-  root.oninput=()=>{clearTimeout(timer);timer=setTimeout(load,180)};load();$('#merge-cancel').onclick=closeModal;
-  $('#merge-next').onclick=async()=>{try{await mergeConfirm(item,$('#merge-target').value,onSave)}catch(e){error($('#merge-error'),e)}};
+  const pending=!item.id;
+  modal(`<h2>${esc(t(pending?'useExistingMetadata':'merge'))}: ${esc(label(item))}</h2><p>${esc(t(pending?'pendingMetadataHint':'mergeText'))}</p><div id="merge-error"></div><div class="stack"><input id="merge-query" placeholder="${esc(t('searchMetadata'))}"><label><span>${esc(t('mergeInto'))}</span><select id="merge-target" disabled></select></label><p id="merge-empty" class="muted" hidden>${esc(t('noMergeTargets'))}</p></div><div class="actions tag-actions">${btn(t('cancel'),'merge-cancel')}${btn(t(pending?'useExistingMetadata':'reviewMerge'),'merge-next','primary')}</div>`);
+  let sequence=0,timer,targets=[];const root=$('#merge-query'),select=$('#merge-target'),next=$('#merge-next'),errorBox=$('#merge-error'),empty=$('#merge-empty');
+  const disable=()=>{select.disabled=true;next.disabled=true};disable();
+  const load=async()=>{const seq=++sequence;disable();errorBox.textContent='';try{
+   const candidates=await api('entities?kind='+encodeURIComponent(item.kind)+'&q='+encodeURIComponent(root.value));if(seq!==sequence||!root.isConnected)return;
+   targets=candidates.filter(e=>e.id!==item.id&&e.kind===item.kind);
+   select.innerHTML=targets.map(e=>`<option value="${e.id}">${esc(info(e))}</option>`).join('');select.disabled=next.disabled=!targets.length;empty.hidden=!!targets.length;
+  }catch(e){if(seq===sequence&&root.isConnected)error(errorBox,e)}};
+  root.oninput=()=>{sequence++;disable();clearTimeout(timer);timer=setTimeout(load,180)};
+  const stop=()=>{sequence++;clearTimeout(timer)};
+  $('#merge-cancel').onclick=()=>{stop();closeModal()};dialog.oncancel=stop;load();
+  next.onclick=async()=>{const target=select.value;if(next.disabled||!targets.some(e=>e.id===target))return;next.disabled=true;try{
+   if(pending){stop();closeModal();await onSave(target)}
+   else await mergeConfirm(item,target,onSave);
+  }catch(e){if(root.isConnected)error(errorBox,e)}finally{if(root.isConnected)next.disabled=!targets.length}};
  }
  function editor(item,onSave,initial){
   const data={kind:item?.kind||'tag',name:item?.display_alias||item?.name||'',gender:item?.gender||'neutral',aliases:item?.aliases||[],sort_reading:item?.sort_reading||'',...initial};
-  modal(`<h2>${esc(t(item?(data.kind==='tag'?'sharedTagTitle':'edit'):'newMetadata'))}${data.kind!=='tag'?' · '+esc(t(data.kind)):''}</h2><p>${esc(t('sharedWarning'))}</p><div id="metadata-error"></div><form id="metadata-form" class="stack"><label><span>${esc(t('canonicalName'))}</span><input id="metadata-name" required value="${esc(data.name)}"></label>${data.kind==='tag'?`<label><span>${esc(t('gender'))}</span><select id="metadata-gender">${['neutral','female','male'].map(g=>`<option value="${g}" ${data.gender===g?'selected':''}>${esc(t(g))}</option>`).join('')}</select></label>`:''}<label><span>${esc(t('aliases'))}</span><textarea id="metadata-aliases">${esc(data.aliases.join('\n'))}</textarea></label><label><span>${esc(t('displayAlias'))}</span><select id="metadata-display"></select><small>${esc(t('displayAliasHint'))}</small></label><label><span>${esc(t('sortReading'))}</span><input id="metadata-reading" value="${esc(data.sort_reading)}"><small>${esc(t('sortReadingHint'))}</small></label><div class="actions tag-actions">${item?btn(t('merge'),'metadata-merge'):''}${btn(t('cancel'),'metadata-cancel')}<button class="btn primary" type="submit">${esc(t('save'))}</button></div></form>`);
+  // Imported work drafts may have only a name. Keep the field's kind for lookup
+  // and distinguish them from records that already exist in the shared directory.
+  if(item)item={...item,kind:data.kind};
+  const persisted=!!item?.id;
+  modal(`<h2>${esc(t(item?(data.kind==='tag'?'sharedTagTitle':'edit'):'newMetadata'))}${data.kind!=='tag'?' · '+esc(t(data.kind)):''}</h2><p>${esc(t('sharedWarning'))}</p><div id="metadata-error"></div><form id="metadata-form" class="stack"><label><span>${esc(t('canonicalName'))}</span><input id="metadata-name" required value="${esc(data.name)}"></label>${data.kind==='tag'?`<label><span>${esc(t('gender'))}</span><select id="metadata-gender">${['neutral','female','male'].map(g=>`<option value="${g}" ${data.gender===g?'selected':''}>${esc(t(g))}</option>`).join('')}</select></label>`:''}<label><span>${esc(t('aliases'))}</span><textarea id="metadata-aliases">${esc(data.aliases.join('\n'))}</textarea></label><label><span>${esc(t('displayAlias'))}</span><select id="metadata-display"></select><small>${esc(t('displayAliasHint'))}</small></label><label><span>${esc(t('sortReading'))}</span><input id="metadata-reading" value="${esc(data.sort_reading)}"><small>${esc(t('sortReadingHint'))}</small></label><div class="actions tag-actions">${item?btn(t(persisted?'merge':'useExistingMetadata'),'metadata-merge'):''}${btn(t('cancel'),'metadata-cancel')}<button class="btn primary" type="submit">${esc(t('save'))}</button></div></form>`);
   const aliases=bindPrimaryNames($,esc,t);
   if(item?.primary_name_pending)$('#metadata-error').textContent=t('primaryNameConflict');
   $('#metadata-cancel').onclick=closeModal;$('#metadata-merge')?.addEventListener('click',()=>mergeEditor(item,onSave));
   const submit=async(value,form=$('#metadata-form'))=>{
-   try{const result=await api('entities'+(item?'/'+item.id:''),item?'PUT':'POST',value);markLibraryDirty();if(!form.isConnected)return;closeModal();await onSave(result.id)}
+   try{const result=await api('entities'+(persisted?'/'+item.id:''),persisted?'PUT':'POST',value);markLibraryDirty();if(!form.isConnected)return;closeModal();await onSave(result.id)}
    catch(e){
     if(!form.isConnected)return;
     if(!e.tag_conflicts){error($('#metadata-error'),e);return}
-    const decision=await collisionChoice(e.tag_conflicts,!!item,value);
+    const decision=await collisionChoice(e.tag_conflicts,persisted,value);
     if(!decision){editor(item,onSave,value);return}
     if(decision.target){
-     if(!item){markLibraryDirty();await onSave(decision.target);return}
+     if(!persisted){markLibraryDirty();await onSave(decision.target);return}
      try{if(!await mergeConfirm(item,decision.target,onSave,value))editor(item,onSave,value)}catch(err){editor(item,onSave,value);error($('#metadata-error'),err)}
     }else{editor(item,onSave,value);await submit({...value,allow_collision:true,collision_signature:e.signature})}
    }

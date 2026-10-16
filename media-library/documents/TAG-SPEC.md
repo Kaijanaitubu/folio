@@ -59,5 +59,13 @@ Verification: `test_primary_names.py` covers every metadata kind, old-client com
 
 The owner explicitly approved merging the two conflicting author pairs into their Japanese primary names. The rollout takes a complete SQLite backup, promotes the other existing display choices, then performs both merges through the regular history/redirect implementation. It verifies every work/source/score record is unchanged and compares the complete association set after replacing only the two merged author IDs. These are collection-specific maintenance decisions, not automatic name-based merge rules shipped to other libraries.
 
+## Work-editor metadata merge repair — 2026-10-16
+
+- Imported work drafts can contain a metadata name without `kind` or a persisted entity ID. The shared editor previously knew the field kind only in its form data, while its merge picker queried `kind=undefined` from the original item. Reproduced an empty author target list; pass the work field's kind into all picker and editor paths.
+- Saved metadata retains the existing preview/signature-confirmed shared merge, aliases/associations, redirects and History recovery. Same-name/different-attribute tags remain eligible targets; different metadata kinds are excluded.
+- Unsaved imported metadata offers **Use existing metadata**, selecting the existing item for the work draft without a shared merge or alias/name changes. The message states that scope. Saving a new metadata name uses POST /entities instead of PUT /entities/undefined. Cancelling selection creates nothing.
+- Disable the target selector and next button while loading or when no matches exist, show an empty-result explanation, and ignore late/closed/out-of-order search results. Candidate queries still support names and aliases; refine the query to find items beyond the first300 results.
+- After selecting/merging a non-tag field from work editing, deduplicate the target ID within that field. Preserve other unsaved work fields and ignore responses after switching to another draft. Merely opening the picker never performs a merge.
+
 
 Rollout checks passed: 69 Python tests plus English/Japanese UI checks; the private HTTPS API and public shared-server health both returned 200. In the existing library, 6,109 metadata entries became 6,107 solely from the two approved author merges. All 4,869 work records, source links and scores remained unchanged. All 74,725 associations matched the expected ID substitutions, foreign keys and SQLite integrity passed, and no legacy display overrides remained. The pre-change database backup is retained on the VPS outside the web-served files.

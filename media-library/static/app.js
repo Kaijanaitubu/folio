@@ -125,7 +125,7 @@ async function edit(id,reuse=false){if(!reuse||!draft){draft=id?await api('works
  $$('[data-add-kind]').forEach(b=>b.onclick=()=>chooseMetadata(b.dataset.addKind,item=>{if(!draft[b.dataset.addKind].some(e=>e.id===item.id))draft[b.dataset.addKind].push(item);edit(id,true)}));
  $$('[data-edit-chip]').forEach(b=>b.onclick=()=>{
   const [k,index]=b.dataset.editChip.split(':'),i=Number(index),editing=draft;
-  if(k!=='tag'){metadataEditor(draft[k][i],k,async eid=>{if(draft!==editing)return;draft[k][i]=await api('entities/'+eid);markLibraryDirty();edit(id,true)});return}
+  if(k!=='tag'){metadataEditor(draft[k][i],k,async eid=>{if(draft!==editing)return;const entity=await api('entities/'+eid);if(draft!==editing)return;editing[k][i]=entity;editing[k]=editing[k].filter((e,index,items)=>!e.id||items.findIndex(other=>other.id===e.id)===index);markLibraryDirty();edit(id,true)});return}
   const apply=item=>{if(draft!==editing)return;draft.tag[i]=item;const seen=new Set();draft.tag=draft.tag.filter(e=>{const key=e.id||e.name+'\0'+(e.gender||'neutral');if(seen.has(key))return false;seen.add(key);return true});edit(id,true)};
   const shared=async()=>{if(draft!==editing)return;draft.tag=await Promise.all(draft.tag.map(e=>e.id?api('entities/'+e.id):e));markLibraryDirty();await edit(id,true)};
   tagUI.workEditor(draft.tag[i],apply,shared);

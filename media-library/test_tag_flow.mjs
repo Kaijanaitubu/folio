@@ -60,3 +60,61 @@ for(const language of ['en','ja']){
  const pending=h.$('#work-tag-form').onsubmit(event);const before=h.applied.length;h.$('#work-tag-cancel').onclick();release([female]);await pending;assert.equal(h.applied.length,before);
 }
 console.log('Tag UI checks passed: EN/JA, local attribute replacement, deferred creation, cancel, shared editor, alias reuse, and late-response protection.');
+
+// Work drafts may carry imported names without the directory's kind field.
+for(const language of ['en','ja']){
+ for(const kind of ['author','circle','series','character']){
+  const h=setup(language),item={...original,id:'source'};delete item.kind;
+  const target={...original,id:'target',kind,name:'Target'};
+  h.respond=path=>path.startsWith('entities?kind='+kind+'&')?[target]:[];
+  h.ui.editor(item,()=>{}, {kind});h.$('#metadata-merge').onclick();await tick();
+  assert.equal(h.calls.at(-1).path,'entities?kind='+kind+'&q=');
+  assert.ok(h.$('#merge-target').innerHTML.includes('value="target"'));
+ }
+}
+
+for(const language of ['en','ja']){
+ // An unsaved imported author is replaced by an existing author in the work draft.
+ const h=setup(language),target={...original,id:'author-target',kind:'author',name:'Existing author'};
+ h.respond=path=>path.startsWith('entities?')?[target]:assert.fail('Unexpected mutation: '+path);
+ h.ui.editor({name:'Imported author'},id=>h.applied.push(id),{kind:'author'});
+ assert.ok(h.html.includes(language==='ja'?'既存のメタデータを使う':'Use existing metadata'));
+ h.$('#metadata-merge').onclick();await tick();
+ assert.equal(h.$('#merge-next').disabled,false);h.$('#merge-target').value=target.id;
+ await h.$('#merge-next').onclick();assert.deepEqual(h.applied,[target.id]);assert.ok(h.calls.every(c=>!c.method));
+ // Saving an unsaved name creates metadata rather than PUT /undefined.
+ h.ui.editor({name:'Imported author'},()=>{}, {kind:'author'});h.respond=()=>({id:'created'});
+ h.$('#metadata-form').onsubmit(event);await tick();
+ assert.equal(h.calls.at(-1).path,'entities');assert.equal(h.calls.at(-1).method,'POST');assert.equal(h.calls.at(-1).body.kind,'author');
+ // Existing authors still use the preview + signature-protected shared merge.
+ const source={...original,id:'source-author',kind:'author'};
+ h.respond=path=>path.startsWith('entities?')?[source,target,{...target,id:'wrong-kind',kind:'tag'}]:path.endsWith('/merge-preview')?{source,target,count:2,signature:'reviewed'}:{id:target.id};
+ h.ui.editor(source,id=>h.applied.push(id));h.$('#metadata-merge').onclick();await tick();
+ assert.ok(!h.$('#merge-target').innerHTML.includes('wrong-kind'));
+ assert.ok(!h.$('#merge-target').innerHTML.includes('value="source-author"'));
+ h.$('#merge-target').value=target.id;const review=h.$('#merge-next').onclick();await tick();
+ assert.ok(h.$('#merge-confirm'));await h.$('#merge-confirm').onclick();await review;
+ assert.equal(h.calls.at(-1).path,'entities/source-author/merge');assert.equal(h.calls.at(-1).body.signature,'reviewed');
+ // Empty searches disable selection and show a reason; cancellation ignores late results.
+ h.respond=()=>[];h.ui.mergeEditor(source,()=>{});await tick();
+ assert.equal(h.$('#merge-next').disabled,true);assert.equal(h.$('#merge-target').disabled,true);assert.equal(h.$('#merge-empty').hidden,false);
+ let release;h.respond=()=>new Promise(resolve=>release=resolve);h.ui.mergeEditor(source,()=>assert.fail('Late selection'));
+ h.$('#merge-cancel').onclick();h.ui.editor(target,()=>{});const nextHTML=h.html;release([target]);await tick();
+ assert.equal(h.html,nextHTML);assert.equal(h.$('#merge-target'),null);
+}
+// The actual work editor deduplicates the source/target after a metadata merge.
+{
+ const app=readFileSync(new URL('static/app.js',import.meta.url),'utf8');
+ const body=app.slice(app.indexOf(" $$('[data-edit-chip]').forEach"),app.indexOf(" $$('[data-score]').forEach"));
+ const vm=await import('node:vm');
+ for(const stale of [false,true]){
+  let onSave,release;const source={id:'source',name:'Source'},target={id:'target',name:'Target'};
+  const initial={author:[source,target],title:'Unsaved work',review:'Keep'},button={dataset:{editChip:'author:0'}};
+  const context={draft:initial,id:'work',$$:()=>[button],metadataEditor:(item,kind,callback)=>{assert.equal(kind,'author');onSave=callback},api:()=>stale?new Promise(resolve=>release=resolve):Promise.resolve(target),markLibraryDirty:()=>{},edit:()=>{context.edited=true}};
+  vm.runInNewContext(body,context);button.onclick();const pending=onSave(target.id);
+  if(stale){context.draft={author:[],title:'Another work'};release(target)}await pending;
+  if(stale){assert.equal(context.draft.title,'Another work');assert.equal(context.edited,undefined)}
+  else{assert.deepEqual(initial.author,[target]);assert.equal(initial.review,'Keep');assert.equal(context.edited,true)}
+ }
+}
+console.log('Metadata merge regressions passed: inferred kind, unsaved author reuse/create, existing merge, empty/cancelled lookup, work deduplication and stale drafts.');
