@@ -22,3 +22,6 @@ Object.assign(ja,{bookmarkTitlePreference:'取込時の作品タイトル',sourc
 
 Object.assign(en,{importNoChanges:'No information to change'});
 Object.assign(ja,{importNoChanges:'変更する情報はありません'});
+
+Object.assign(en,{matchAllMetadataHint:'Metadata choices apply to this entry only. Apply to all continues to add links only for the other entries.'});
+Object.assign(ja,{matchAllMetadataHint:'メタデータの選択は今回の1件だけに適用します。「すべてに適用」で処理するほかの作品はリンクのみ統合します。'});

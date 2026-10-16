@@ -175,7 +175,21 @@ def enumerate_page(jid):
         done=current['enumeration_page']>=result['num_pages']
         c.execute('UPDATE jobs SET enumeration_page=enumeration_page+1,enumeration_pages=?,enumeration_total=?,enumeration_done=?,enumeration_attempts=0,next_run=0,message=? WHERE id=?',(result['num_pages'],result['total'],int(done),'',jid))
 
-def finish_item(c,item,data,current,action='new',target=None):
+def merge_draft(c,item,data,current,target):
+    originals,warnings=matching.available_originals(c,data.get('original_links',[]) if current['include_original_links'] else [],target)
+    return dict(data,links=[*data['links'],*originals],source_titles=data.get('source_titles',[data.get('_source_title',data.get('title',''))])),warnings
+
+
+def merge_preview(c,jid,data):
+    current=job(c,jid)
+    item=c.execute("SELECT * FROM job_items WHERE id=? AND job_id=? AND status='match_review'",(data.get('item_id'),jid)).fetchone()
+    if not item:raise ValueError('Import review changed; refresh the job')
+    draft,_=merge_draft(c,dict(item),json.loads(item['payload']),current,data.get('target'))
+    import work_merge
+    return work_merge.draft_preview(c,draft,data.get('target'))
+
+
+def finish_item(c,item,data,current,action='new',target=None,merge_review=None):
     exact=db.exact_sources(c,item['url'])
     if exact:
         c.execute("UPDATE job_items SET status='duplicate_url',warnings_json=?,payload='{}' WHERE id=?",(json.dumps({'sources':exact},ensure_ascii=False),item['id'])); return
@@ -183,7 +197,13 @@ def finish_item(c,item,data,current,action='new',target=None):
     original_links=data.get('original_links',[]) if current['include_original_links'] else []
     original_warnings=[]
     if action=='attach':
-        result=matching.attach(c,target,item['url'],data.get('source_titles',[source_title]),original_links);original_warnings=result.get('original_warnings',[]);status='linked'
+        if merge_review is not None:
+            import work_merge
+            draft,original_warnings=merge_draft(c,item,data,current,target)
+            result=work_merge.apply_draft(c,draft,target,merge_review.get('merge_signature'),merge_review.get('metadata_patch'))
+        else:
+            result=matching.attach(c,target,item['url'],data.get('source_titles',[source_title]),original_links);original_warnings=result.get('original_warnings',[])
+        status='linked'
     else:
         originals,original_warnings=matching.available_originals(c,original_links)
         result=db.save_work(c,dict(data,links=[*data['links'],*originals])); status='added'
@@ -264,6 +284,7 @@ def decide(c,jid,data):
     selected=c.execute("SELECT * FROM job_items WHERE id=? AND job_id=? AND status='match_review'",(data.get('item_id'),jid)).fetchone()
     if not selected: raise ValueError('Import review changed; refresh the job')
     items=c.execute("SELECT * FROM job_items WHERE job_id=? AND status='match_review' ORDER BY rowid",(jid,)).fetchall() if apply_all else [selected]
+    items=sorted(items,key=lambda row:row['id']!=selected['id'])
     resolved=0; ambiguous=0
     for row in items:
         item=dict(row); payload=json.loads(item['payload']); options=matching.candidates(c,payload,item['url'])
@@ -272,7 +293,10 @@ def decide(c,jid,data):
             if not target: ambiguous+=1; continue
             # Selected manual targets are allowed; active work is validated in attach.
             if row['id']!=selected['id'] and len(options)!=1: ambiguous+=1; continue
-        try: finish_item(c,item,payload,current,action,target)
+        try:
+            review=data if row['id']==selected['id'] and action=='attach' and data.get('merge_signature') else None
+            if row['id']==selected['id'] and data.get('metadata_patch') and not review:raise ValueError('Review metadata before merging')
+            finish_item(c,item,payload,current,action,target,review)
         except db.DuplicateSource as e:
             c.execute("UPDATE job_items SET status='duplicate_url',payload='{}',warnings_json=? WHERE id=?",(json.dumps({'sources':e.matches}),item['id']))
         resolved+=1

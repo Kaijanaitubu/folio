@@ -20,8 +20,9 @@ const work=()=>({title:'Existing title',cover:'',pages:5,category:'',language:''
 const imported=()=>({title:'New title',cover:'https://example.org/cover',pages:8,author:[tag('New author')],tag:structuredClone(incoming),series:[tag('Series')],circle:[],character:[],warnings:[],ambiguities:[],title_matches:[]});
 function setup(language='en'){
  const nodes=new Map(),context={draft:work(),routeVersion:1,applyImported,metadataKinds,sameMetadataSet,hasImportedChanges,displayName:e=>e.name,esc:s=>String(s).replaceAll('<','&lt;'),t:k=>(language==='ja'?ja:en)[k]||k,btn:()=>'',dialog:{},localizeError:s=>s,modal:html=>context.html=html,closeModal:()=>{},api:async()=>structuredClone(context.incoming),edit:()=>context.edited=true,toast:text=>context.lastToast=text,error:(_,e)=>{throw e}};
- context.incoming=imported();context.$=s=>{if(!nodes.has(s))nodes.set(s,{isConnected:true});return nodes.get(s)};
+ context.incoming=imported();context.mergeOriginals=(links,extra)=>[...links,...extra];context.$=s=>{if(!nodes.has(s))nodes.set(s,{isConnected:true});return nodes.get(s)};
  context.$$=s=>s==='[data-import-mode]'?context.modes||[]:s==='[data-replace]:checked'?context.replacements||[]:context.aliasButtons||[];
+ context.workMergeUI={attach:(draft,target)=>{context.attached=structuredClone(draft);return context.api('draft-merge/apply','POST',{draft,target})}};
  context.trashSourceUI={prepare:async()=>true,attach:(url,target,titles)=>context.api('source-attach','POST',{url,target,source_titles:titles})};
  vm.createContext(context);vm.runInContext(code,context);return {context,nodes};
 }
@@ -131,15 +132,17 @@ for(const automatic of [[],[{id:'other',title:'New title',evidence:{author:true}
  const {context}=setup();let calls=[];
  context.incoming.title_matches=[{id:'other',title:'New title',authors:['Other author']}];
  context.incoming.cross_candidates=automatic;
+ context.draft.links.push({url:'https://example.org/secondary',label:'Secondary'});context.aliasButtons=[{dataset:{importLink:'0'}}];
  context.nhentaiUI={chooseMatch:async(incoming,choices)=>{
   assert.equal(choices.length,1);assert.equal(choices[0].id,'other');
   if(automatic.length)assert.equal(choices[0].evidence.author,true);
   return {action:'attach',target:'other'};
  }};
- context.api=async(path,method,data)=>{calls.push({path,data});return path==='source-attach'?{id:'other'}:structuredClone(context.incoming)};
+ context.api=async(path,method,data)=>{calls.push({path,data});return path==='draft-merge/apply'?{id:'other'}:structuredClone(context.incoming)};
  context.markLibraryDirty=()=>context.dirty=true;context.nav=url=>context.destination=url;
- await context.interactiveImport(null,true);
- assert.equal(calls[1].path,'source-attach');assert.equal(calls[1].data.target,'other');
+ const pending=context.interactiveImport(null,true);await tick();context.aliasButtons[0].onclick();await pending;
+ assert.equal(calls[1].path,'draft-merge/apply');assert.equal(calls[1].data.target,'other');
+ assert.equal(context.attached.links.length,2);assert.equal(context.attached.links[1].label,'Secondary');
  assert.equal(context.destination,'/work/other');assert.equal(context.draft,null);assert.equal(context.edited,undefined);
 }
 {

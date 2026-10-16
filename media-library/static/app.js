@@ -1,3 +1,4 @@
+import {createWorkMergeUI} from './work-merge-ui.js';
 import {importScreen,importLocation} from './import-screen.js';
 import {fanzaPurchaseTools,bindFanzaPurchaseTools} from './fanza-purchases.js';
 import {createMarkUI,markEn,markJa} from './mark-ui.js';
@@ -106,7 +107,8 @@ function closeModal(){dialog.close();dialog.innerHTML=''}
 async function confirm(title,text,action=t('delete')){return new Promise(resolve=>{modal(`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="actions">${btn(t('cancel'),'confirm-no')}${btn(action,'confirm-yes','primary')}</div>`);$('#confirm-no').onclick=()=>{closeModal();resolve(false)};$('#confirm-yes').onclick=()=>{closeModal();resolve(true)};dialog.oncancel=()=>resolve(false)})}
 const tagUI=createTagUI({$, $$, api, t, esc, btn, modal, closeModal, dialog, error, markLibraryDirty, displayName});
 const pawchiveUI=createPawchiveUI({$, $$,modal,closeModal,dialog,esc,toast,lang:()=>lang});
-const nhentaiUI=createNhentaiUI({reviewTags:tagUI.reviewTags, $, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty});
+const workMergeUI=createWorkMergeUI({api,modal,closeModal,dialog,$,$$,esc,t,lang:()=>lang,trashSourceUI});
+const nhentaiUI=createNhentaiUI({workMergeUI,reviewTags:tagUI.reviewTags, $, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty});
 const relayCover=url=>isPixivCover(url)||isPawchiveCover(url)||isStoreCover(url)||/^https?:\/\/(?:[ab]?tn)\.(?:hitomi\.la|gold-usergeneratedcontent\.net)\//.test(url)||/^https:\/\/t[1234]?\.nhentai\.net\//.test(url)||/^https:\/\/z[23]\.momon-ga\.me\/galleries\//.test(url);
 const field=(key,value='',type='text',extra='')=>`<label><span>${esc(t(key))}</span><input data-field="${key}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 function blank(){return {title:'',cover:'',category:'',language:'',pages:null,review:'',bought:false,marks:[],author:[],circle:[],tag:[],series:[],character:[],links:[],ratings:{}}}
@@ -143,7 +145,7 @@ async function edit(id,reuse=false){if(!reuse||!draft){draft=id?await api('works
    const link=draft.links.find(l=>l.is_primary&&l.url)||draft.links.find(l=>l.url);if(!link)return toast(t('addLink'));
    const active=draft,version=routeVersion,current=()=>draft===active&&routeVersion===version;
    const decision=await nhentaiUI.chooseMatch(draft,[]);if(decision?.action!=='attach'||!current())return;
-   const result=await trashSourceUI.attach(link.url,decision.target,draft.source_titles||[],current);if(!result||!current())return;draft=null;markLibraryDirty();nav('/work/'+result.id)
+   const result=await workMergeUI.attach(draft,decision.target,current);if(!result||!current())return;draft=null;markLibraryDirty();nav('/work/'+result.id)
   }catch(e){error($('#form-error'),e)}};
  }
 }
@@ -210,7 +212,9 @@ async function interactiveImport(id,sourceDraft=false){
    const decision=await nhentaiUI.chooseMatch(incoming,matchChoices);
    if(!decision||!current())return;
    if(decision.action==='attach'){
-    const result=await trashSourceUI.attach(link.url,decision.target,incoming.source_titles||[incoming.title],current,originals);if(!result||!current())return;
+    const source={...applyImported(draft,incoming),links:mergeOriginals(draft.links,originals),source_titles:[...new Set([...(draft.source_titles||[]),...(incoming.source_titles||[incoming.title])])]};
+    source.links=source.links.map(l=>l.url===link.url&&!l.label?.trim()?{...l,label:incoming.source_label||''}:l);
+    const result=await workMergeUI.attach(source,decision.target,current);if(!result||!current())return;
     if(result.original_warnings?.length)toast(t('originalSkipped')+': '+result.original_warnings.length);
     draft=null;markLibraryDirty();nav('/work/'+result.id);return;
    }
@@ -584,9 +588,10 @@ async function mergeSavedDraft(id){
  const decision=await nhentaiUI.chooseMatch(draft,candidates.items.filter(w=>w.id!==id),false,{exclude:id,existing:true,title:s('Choose the entry to keep','残す作品を選択'),hint:s('All saved source links will be added as secondary links. The current entry will go to Trash.','保存済みのソースリンクをすべて副リンクとして追加し、現在の作品はゴミ箱へ移動します。')});
  if(decision?.action!=='attach'||!current())return;
  const p=await api('works/'+id+'/merge-preview','POST',{target:decision.target});if(!current())return;
- const accepted=await confirm(s('Confirm link merge','リンク統合の確認'),s(`Move ${p.links.length} source links from “${p.source.title}” to “${p.target.title}” as secondary links? The source entry will go to Trash. Destination metadata and personal records are preserved.`,`「${p.source.title}」のリンク${p.links.length}件を「${p.target.title}」の副リンクとして追加します。統合元はゴミ箱へ移動します。統合先のメタデータ・評価・マーク・レビューは維持します。`),s('Merge','統合'));
- if(!accepted||!current())return;
- const result=await api('works/'+id+'/merge-links','POST',{target:decision.target,signature:p.signature});
+ const patch=await workMergeUI.review(p,current,true);
+ if(patch===null||!current())return;
+ const result=await api('works/'+id+'/merge-links','POST',{target:decision.target,signature:p.signature,metadata_patch:patch});
+ if(!current())return;
  draft=null;markLibraryDirty();toast(s('Links merged','リンクを統合しました'));nav('/work/'+result.id);
 }
 

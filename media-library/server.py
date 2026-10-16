@@ -210,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
                     elif g('ids')=='1': result={'ids':features.batch_targets(c,{'all':True,'query':g('q')})}
                     else: result=db.list_works(c,g('q'),g('sort','newest'),max(0,int(g('offset','0'))),min(100,max(1,int(g('limit','40')))),g('seed','0'),g('random')=='1')
                 elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='merge-preview': result=work_merge.preview(c,ident,data.get('target'))
-                elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='merge-links': result=work_merge.apply(c,ident,data.get('target'),data.get('signature'))
+                elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='merge-links': result=work_merge.apply(c,ident,data.get('target'),data.get('signature'),data.get('metadata_patch'))
                 elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='marks': result=marks.toggle(c,ident,data)
                 elif self.command=='POST' and ident and len(parts)>2 and parts[2]=='open': result=db.get_work(c,ident,True)
                 elif self.command in ('POST','PUT'):
@@ -246,6 +246,10 @@ class Handler(BaseHTTPRequestHandler):
                 elif self.command in ('POST','PUT'): result=features.save_search(c,data,ident)
                 elif self.command=='DELETE': c.execute('DELETE FROM saved_searches WHERE id=? AND owner=?',(ident,db.OWNER)); result={'ok':True}
                 else: raise ValueError('Invalid saved search request')
+            elif action=='draft-merge' and self.command=='POST':
+                if ident=='preview': result=work_merge.draft_preview(c,data.get('draft'),data.get('target'))
+                elif ident=='apply': result=work_merge.apply_draft(c,data.get('draft'),data.get('target'),data.get('signature'),data.get('metadata_patch'),data.get('trash_sources',[]))
+                else: raise ValueError('Invalid merge request')
             elif action=='batch' and self.command=='POST':
                 result=features.batch_trash(c,data) if ident=='trash' else features.batch_apply(c,data.get('id')) if ident=='apply' else features.batch_preview(c,data) if ident=='preview' else None
                 if result is None: raise ValueError('Invalid batch request')
@@ -337,6 +341,7 @@ class Handler(BaseHTTPRequestHandler):
                     if len(parts)!=3: raise ValueError('Invalid import job action')
                     if parts[2]=='tags': result=import_jobs.decide_tags(c,ident,data)
                     elif parts[2]=='decide': result=import_jobs.decide(c,ident,data)
+                    elif parts[2]=='merge-preview': result=import_jobs.merge_preview(c,ident,data)
                     else:
                         import_jobs.control(c,ident,parts[2],data); result=jobs(c,ident)
                 elif self.command=='POST': result=import_jobs.create(c,data)

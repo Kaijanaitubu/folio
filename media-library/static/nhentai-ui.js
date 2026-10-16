@@ -1,5 +1,5 @@
 // UI shares the existing shell, request guards and escaped text helpers.
-export function createNhentaiUI({reviewTags, $, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty}){
+export function createNhentaiUI({workMergeUI,reviewTags, $, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty}){
  const modes=(id,label)=>`<label><span>${esc(t(label))}</span><select id="${id}"><option value="neutral">${esc(t('nhentaiNeutral'))}</option><option value="frequency">${esc(t('nhentaiFrequency'))}</option></select></label>`;
  const safe=fn=>async()=>{try{await fn()}catch(e){toast(e.message)}};
  async function mount(container){
@@ -51,6 +51,12 @@ export function createNhentaiUI({reviewTags, $, $$, api, t, esc, btn, modal, clo
    $('#job-items').innerHTML=shown.map(i=>`<div class="bookmark-row"><div class="info">${i.work_id?`<a href="#/work/${esc(i.work_id)}">${esc(i.title)}</a>`:esc(i.title||i.label||i.url)}<small>${esc(i.url)}${i.message?'<br>'+esc(i.message):''}</small>${i.status==='match_review'?btn(t('matchReview'),'review-'+i.id):i.status==='tag_review'?btn(t('tagReview'),'review-tags-'+i.id):''}${i.warnings?.original_links?.length||i.warnings?.titles?.length||i.warnings?.related?.length?`<details><summary>${esc(t('importWarnings'))}</summary>${summaryCards([...(i.warnings.titles||[]),...(i.warnings.related||[])])}${(i.warnings.original_links||[]).map(link=>`<small>${esc(t('originalSkipped'))}: ${esc(link.url)}</small>${summaryCards(link.matches||[])}`).join('')}</details>`:''}</div><span class="status ${i.status}">${esc(t(i.status))}</span></div>`).join('');
    shown.filter(i=>i.status==='match_review').forEach(i=>$('#review-'+i.id).onclick=safe(async()=>{
     const incoming=i.review_data||{title:i.title};const decision=await chooseMatch(incoming,i.warnings.candidates||[],true);if(!decision||!root.isConnected)return;
+    if(decision.action==='attach'){
+     const p=await api('jobs/'+id+'/merge-preview','POST',{item_id:i.id,target:decision.target});if(!root.isConnected)return;
+     if(decision.apply_all)p.notice=t('matchAllMetadataHint');
+     const patch=await workMergeUI.review(p,()=>root.isConnected);if(patch===null||!root.isConnected)return;
+     decision.merge_signature=p.signature;decision.metadata_patch=patch;
+    }
     const result=await api('jobs/'+id+'/decide','POST',{item_id:i.id,...decision});markLibraryDirty();toast(t('matchResolved')+': '+result.resolved);await poll();
    }));
    shown.filter(i=>i.status==='tag_review').forEach(i=>$('#review-tags-'+i.id).onclick=safe(async()=>{

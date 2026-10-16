@@ -134,6 +134,30 @@ class ImportTests(unittest.TestCase):
         with db.transaction() as c:
             result=jobs.decide(c,jid,{'item_id':other['id'],'action':'new','apply_all':True});self.assertEqual(result['resolved'],1)
             self.assertEqual(jobs.job(c,jid)['match_policy'],'new')
+
+    def test_reviewed_batch_metadata_is_selected_only_and_atomic(self):
+        target=self.save({'title':'One','author':['Alice'],'tag':['Keep'],'review':'Personal','marks':[1],'links':[{'url':'https://hitomi.la/reader/1.html'}]})
+        jid=self.new_job([{'url':f'https://nhentai.net/g/{i}/'} for i in (101,102)])
+        first=self.process(jid,'One');selected=self.process(jid,'One')
+        with db.transaction() as c:
+            preview=jobs.merge_preview(c,jid,{'item_id':selected['id'],'target':target['id']})
+            self.assertEqual(len(preview['links']),1)
+            result=jobs.decide(c,jid,{'item_id':selected['id'],'action':'attach','target':target['id'],'apply_all':True,'merge_signature':preview['signature'],'metadata_patch':{'tag':[{'name':'Selected'}]}})
+            self.assertEqual(result['resolved'],2)
+            after=db.get_work(c,target['id']);self.assertEqual(len(after['links']),3)
+            self.assertEqual([t['name'] for t in after['tag']],['Selected'])
+            self.assertEqual(after['review'],'Personal');self.assertEqual(after['marks'],[1])
+        # A stale target blocks the selected metadata and link together.
+        jid2=self.new_job([{'url':'https://nhentai.net/g/103/'}]);item=self.process(jid2,'One')
+        with db.transaction() as c:
+            p=jobs.merge_preview(c,jid2,{'item_id':item['id'],'target':target['id']})
+            c.execute('UPDATE works SET review=? WHERE id=?',('Changed',target['id']))
+        with self.assertRaises(ValueError),db.transaction() as c:
+            jobs.decide(c,jid2,{'item_id':item['id'],'action':'attach','target':target['id'],'merge_signature':p['signature'],'metadata_patch':{'title':'Should roll back'}})
+        with db.transaction() as c:
+            self.assertEqual(db.get_work(c,target['id'])['title'],'One')
+            self.assertEqual(len(db.get_work(c,target['id'])['links']),3)
+            self.assertEqual(c.execute('SELECT status FROM job_items WHERE id=?',(item['id'],)).fetchone()[0],'match_review')
     def test_2500_favorites_durable_pagination_dedup_restart(self):
         jid=self.new_job(kind='favorites')
         for page in range(1,101):

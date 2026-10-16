@@ -81,3 +81,55 @@ class WorkMergeTests(unittest.TestCase):
             c.execute("INSERT INTO owners(id) VALUES('other')")
             c.execute("UPDATE works SET owner='other' WHERE id=?",(b['id'],))
         self.assertEqual(self.request('/api/works/'+a['id']+'/merge-preview','POST',{'target':b['id']})[0],400)
+
+    def test_all_links_metadata_selection_and_personal_records(self):
+        a=self.work('A','https://example.com/a');b=self.work('B','https://example.com/b')
+        a['links'] += [{'url':'https://example.com/secondary','label':'Secondary'}]
+        self.api('works/'+a['id'],'PUT',a)
+        p=self.api('works/'+a['id']+'/merge-preview','POST',{'target':b['id']})
+        self.assertEqual(len(p['links']),2)
+        self.api('works/'+a['id']+'/merge-links','POST',{'target':b['id'],'signature':p['signature'],'metadata_patch':{'title':'A','tag':a['tag'],'author':[{'name':'New'}],'pages':42}})
+        after=self.api('works/'+b['id'])
+        self.assertEqual([l['label'] for l in after['links']],['B','A','Secondary'])
+        self.assertEqual(after['title'],'A');self.assertEqual(after['tag'],a['tag']);self.assertEqual(after['pages'],42)
+        for k in ('ratings','review','marks'):self.assertEqual(after[k],b[k])
+        self.assertEqual(after['author'][0]['name'],'New')
+        history=self.api('history')[0]
+        self.api('history/'+history['id']+'/undo','POST',{})
+        restored=self.api('works/'+b['id'])
+        for k in ('title','tag','author','pages','ratings','review','marks'):self.assertEqual(restored[k],b[k])
+        self.assertEqual([{k:v for k,v in l.items() if k!='id'} for l in restored['links']],[{k:v for k,v in l.items() if k!='id'} for l in b['links']])
+
+    def test_metadata_failure_rolls_back_everything(self):
+        a=self.work('A','https://example.com/a');b=self.work('B','https://example.com/b')
+        p=self.api('works/'+a['id']+'/merge-preview','POST',{'target':b['id']})
+        for patch in ({'title':'Changed','author':[{'name':'Created then rolled back'}],'tag':[{'id':'missing'}]}, {'review':'Forbidden'}):
+            code,_,_=self.request('/api/works/'+a['id']+'/merge-links','POST',{'target':b['id'],'signature':p['signature'],'metadata_patch':patch})
+            self.assertEqual(code,400)
+            self.assertEqual(self.api('works/'+b['id']),{k:v for k,v in b.items() if k!='warnings'});self.assertEqual(self.api('trash'),[])
+        self.assertEqual(self.api('entities?kind=author'),[])
+
+    def test_draft_merge_keeps_every_link_and_guards_target(self):
+        b=self.work('B','https://example.com/b')
+        draft={'title':'Draft','tag':[{'name':'Incoming'}],'links':[{'url':'https://example.com/a','label':'Primary','is_primary':True},{'url':'https://example.com/extra','label':'Extra'},{'url':'https://example.com/b','label':'Already there'},{'url':'https://example.com/a','label':'Duplicate'}]}
+        body={'draft':draft,'target':b['id']}
+        p=self.api('draft-merge/preview','POST',body)
+        self.assertEqual(len(p['links']),2);self.assertEqual(self.api('works/'+b['id']),{k:v for k,v in b.items() if k!='warnings'})
+        self.api('draft-merge/apply','POST',dict(body,signature=p['signature']))
+        after=self.api('works/'+b['id']);self.assertEqual(len(after['links']),3)
+        self.assertEqual(after['tag'],b['tag']);self.assertEqual(self.api('trash'),[])
+        self.assertEqual(self.request('/api/draft-merge/apply','POST',dict(body,signature=p['signature']))[0],400)
+
+    def test_draft_trash_confirmation_and_third_active_conflict(self):
+        b=self.work('B','https://example.com/b');a=self.work('A','https://example.com/a')
+        body={'draft':{'title':'Draft','links':a['links']},'target':b['id']}
+        self.assertEqual(self.request('/api/draft-merge/preview','POST',body)[0],409)
+        self.api('works/'+a['id'],'DELETE')
+        p=self.api('draft-merge/preview','POST',body)
+        self.assertEqual(self.request('/api/draft-merge/apply','POST',dict(body,signature=p['signature']))[0],409)
+        trash=self.api('trash-source/preview','POST',{'url':a['links'][0]['url']})
+        consent={'url':a['links'][0]['url'],'signature':trash['signature']}
+        self.assertEqual(self.request('/api/draft-merge/apply','POST',dict(body,signature=p['signature'],trash_sources=[consent],metadata_patch={'author':[{'id':'missing'}]}))[0],400)
+        self.assertEqual(len(self.api('trash')),1);self.assertEqual(len(self.api('works/'+b['id'])['links']),1)
+        self.api('draft-merge/apply','POST',dict(body,signature=p['signature'],trash_sources=[{'url':a['links'][0]['url'],'signature':trash['signature']}]))
+        self.assertEqual(self.api('trash'),[]);self.assertEqual(len(self.api('works/'+b['id'])['links']),2)
