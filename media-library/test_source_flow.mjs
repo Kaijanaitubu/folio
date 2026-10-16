@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 const load=async name=>import('data:text/javascript;base64,'+Buffer.from(readFileSync(new URL('static/'+name,import.meta.url),'utf8')).toString('base64'));
 const {bookmarklet}=await load('source-link.js');
+const {isPixivSource}=await load('pixiv-sources.js');
 const {isStoreSource,isDLsitePlaySeries}=await load('store-sources.js');
 const {isPawchiveSource}=await load('pawchive-sources.js');
 const {en,ja}=await load('i18n.js');
@@ -35,7 +36,7 @@ const importCode=app.slice(app.indexOf('async function interactiveImport('),app.
 const fixture={title:'Imported fixture',cover:'',category:'manga',language:'Japanese',pages:10,author:[{name:'QA Author'}],circle:[],tag:[],series:[],character:[],warnings:[],ambiguities:[]};
 function setup(match,matches){
  const calls=[],nodes={},buttons=matches.map(w=>({dataset:{sourceWork:w.id}}));
- const context={isStoreSource,isDLsitePlaySeries,isPawchiveSource,routeVersion:1,draft:null,baseline:'',location:{hash:''},previousHash:'',
+ const context={isPixivSource,isStoreSource,isDLsitePlaySeries,isPawchiveSource,routeVersion:1,draft:null,baseline:'',location:{hash:''},previousHash:'',
   route:()=>({params:new URLSearchParams({url:source})}),
   api:async(path,method,body)=>{calls.push({path,method,body});return path==='source-check'?{url:source,match,matches}:structuredClone(fixture)},
   blank:()=>({title:'',cover:'',category:'',language:'',pages:null,author:[],circle:[],tag:[],series:[],character:[],links:[],ratings:{}}),

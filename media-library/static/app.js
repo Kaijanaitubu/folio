@@ -14,6 +14,7 @@ import {bookmarklet} from './source-link.js';
 import {pageTitle} from './page-title.js';
 import {createTrashSourceUI} from './trash-source-ui.js';
 import {createCardSources} from './card-sources.js';
+import {isPixivSource,isPixivCover} from './pixiv-sources.js';
 import {isStoreSource,isStoreCover,isDLsitePlaySeries} from './store-sources.js';
 import {isPawchiveSource,isPawchiveCover,mergeOriginals} from './pawchive-sources.js';
 import {createPawchiveUI} from './pawchive-ui.js';
@@ -106,7 +107,7 @@ async function confirm(title,text,action=t('delete')){return new Promise(resolve
 const tagUI=createTagUI({$, $$, api, t, esc, btn, modal, closeModal, dialog, error, markLibraryDirty, displayName});
 const pawchiveUI=createPawchiveUI({$, $$,modal,closeModal,dialog,esc,toast,lang:()=>lang});
 const nhentaiUI=createNhentaiUI({reviewTags:tagUI.reviewTags, $, $$, api, t, esc, btn, modal, closeModal, dialog, error, toast, nav, shell, heading, summaryCards, markLibraryDirty});
-const relayCover=url=>isPawchiveCover(url)||isStoreCover(url)||/^https?:\/\/(?:[ab]?tn)\.(?:hitomi\.la|gold-usergeneratedcontent\.net)\//.test(url)||/^https:\/\/t[1234]?\.nhentai\.net\//.test(url)||/^https:\/\/z[23]\.momon-ga\.me\/galleries\//.test(url);
+const relayCover=url=>isPixivCover(url)||isPawchiveCover(url)||isStoreCover(url)||/^https?:\/\/(?:[ab]?tn)\.(?:hitomi\.la|gold-usergeneratedcontent\.net)\//.test(url)||/^https:\/\/t[1234]?\.nhentai\.net\//.test(url)||/^https:\/\/z[23]\.momon-ga\.me\/galleries\//.test(url);
 const field=(key,value='',type='text',extra='')=>`<label><span>${esc(t(key))}</span><input data-field="${key}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 function blank(){return {title:'',cover:'',category:'',language:'',pages:null,review:'',bought:false,marks:[],author:[],circle:[],tag:[],series:[],character:[],links:[],ratings:{}}}
 function scoreEditor(d){const n=draft.ratings[d.id]||0;return `<div><span class="field-title">${d.number}. ${esc(d.name)} <small>(${d.maximum})</small></span><div class="score-editor">${Array.from({length:d.maximum},(_,i)=>`<button type="button" data-score="${d.id}:${i+1}" class="${i<n?'on':''}" aria-label="${esc(d.name)} ${i+1}/${d.maximum}">${symbols[d.symbol][i<n?0:1]}</button>`).join('')}<button type="button" class="clear-score" data-score="${d.id}:0">${esc(t('clearRating'))}</button><small>${n?`${n}/${d.maximum}`:esc(t('unrated'))}</small></div></div>`}
@@ -494,7 +495,7 @@ async function showTrashedSource(matches,value){
  history.replaceState(null,'','#/new');previousHash=location.hash;await edit(null,true);
  if(importerSourceURL(value))await interactiveImport(null,true);
 }
-function importerSourceURL(value){return isPawchiveSource(value)||isStoreSource(value)||isDLsitePlaySeries(value)||/^https?:\/\/(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)}
+function importerSourceURL(value){return isPixivSource(value)||isPawchiveSource(value)||isStoreSource(value)||isDLsitePlaySeries(value)||/^https?:\/\/(www\.)?(hitomi\.la|nhentai\.net|momon-ga\.com)\//i.test(value)}
 
 const mergeLabel=e=>displayName(e)+(e.gender&&e.gender!=='neutral'?' · '+t(e.gender):'');
 async function historyPage(){

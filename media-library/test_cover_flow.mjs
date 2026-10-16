@@ -2,10 +2,11 @@
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
+import {isPixivCover} from './static/pixiv-sources.js';
 import {isStoreCover} from './static/store-sources.js';
 import {isPawchiveCover} from './static/pawchive-sources.js';
 const app=readFileSync(new URL('static/app.js',import.meta.url),'utf8');
-const context={isStoreCover,isPawchiveCover,esc:s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;'),t:s=>s,placeholder:()=>'<span>Empty</span>'};
+const context={isPixivCover,isStoreCover,isPawchiveCover,esc:s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;'),t:s=>s,placeholder:()=>'<span>Empty</span>'};
 vm.createContext(context);
 vm.runInContext(app.slice(app.indexOf('const relayCover='),app.indexOf('\nconst field=')),context);
 vm.runInContext(app.slice(app.indexOf('function image('),app.indexOf('\nfunction images(')),context);
@@ -25,3 +26,5 @@ assert.equal(new URL(src({...work,cover:'https://img.dlsite.jp/modpub/images2/wo
 console.log('Cover renderer identity checks passed');
 
 assert.equal(new URL(src({...work,cover:'https://file.pawchive.pw/data/aa/aa/'+ 'a'.repeat(64)+'.jpg'}),'http://localhost').pathname,'/api/works/fixture/cover');
+
+assert.equal(new URL(src({...work,cover:'https://i.pximg.net/c/250x250_80_a2/img-master/img/2026/10/16/00/00/00/123_p0_master1200.jpg'}),'http://localhost').pathname,'/api/works/fixture/cover');

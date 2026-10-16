@@ -121,6 +121,9 @@ def parse_gallery(text,cover_page=1):
     return out
 
 def source_identity(url):
+    import pixiv
+    parsed=pixiv.location(url)
+    if parsed:return parsed
     import pawchive
     parsed=pawchive.location(url)
     if parsed:return ('pawchive',parsed[0]+':'+parsed[2])
@@ -141,6 +144,8 @@ def source_identity(url):
     return ('hitomi',gid) if gid else None
 
 def import_url(url):
+    import pixiv
+    if pixiv.location(url):return pixiv.import_url(url)
     import pawchive
     if pawchive.location(url):return pawchive.import_url(url)
     import stores
@@ -167,7 +172,7 @@ def import_url(url):
 
 def attribute_less_source(url):
     identity=source_identity(url)
-    return bool(identity and identity[0] in ('nhentai','momonga','dlsite','fanza-doujin','dmm-books','pawchive'))
+    return bool(identity and identity[0] in ('nhentai','momonga','dlsite','fanza-doujin','dmm-books','pawchive','pixiv','fanbox'))
 
 class Bookmarks(HTMLParser):
     def __init__(self):

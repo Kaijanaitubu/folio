@@ -145,7 +145,7 @@ def attach(c,wid,value,titles=(),original_links=()):
     # Do not turn a new secondary source into the primary source, even on a linkless work.
     provider=importer.source_identity(value)
     import stores
-    label=stores.label(value) or {'nhentai':'nhentai','hitomi':'Hitomi','momonga':'momon-ga','pawchive':'Pawchive'}.get(provider[0] if provider else '', '')
+    label=stores.label(value) or {'nhentai':'nhentai','hitomi':'Hitomi','momonga':'momon-ga','pawchive':'Pawchive','pixiv':'Pixiv','fanbox':'FANBOX'}.get(provider[0] if provider else '', '')
     originals,warnings=available_originals(c,list(original_links),wid)
     for offset,link in enumerate([{'url':value,'label':label},*originals]):
         c.execute('INSERT INTO links VALUES(?,?,?,?,?,?,?)',(db.uid(),wid,db.url(link['url']),link['label'],position+offset,0,db.normalize_url(link['url'])))

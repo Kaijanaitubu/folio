@@ -1,5 +1,7 @@
 # Folio — Personal Media Library
 
+Pixiv and FANBOX post URLs support public title, cover preview, author and tags via links, sharing, bookmarklets and browser bookmarks. See [the importer specification](PIXIV-FANBOX-SPEC.md). Existing bookmarklets need updating from registration setup.
+
 [English](README.md) | [日本語](README.ja.md)
 
 Imports now opens four purpose cards: links, browser bookmarks, service favorites and purchased works. Import history and registration setup are separate views; Kemono favorites JSON can be loaded directly. See [import screen behavior](IMPORT-UI-SPEC.md).

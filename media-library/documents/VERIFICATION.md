@@ -343,3 +343,12 @@ Further follow-up: moved selection exit to a floating 44 px X above the utility 
 
 - VPS反映前にSQLiteバックアップを作成し、Folio／共有サーバーを更新。VPSからも同じ指定CG商品の実メタデータと表紙JPEG（55,230 bytes）取得に成功、警告なし。データ移行・作品の追加／変更は行っていない。
 - JSの既存ソース遷移・再インポートの回帰チェックも成功。
+
+## 2026-10-16 — Pixiv / FANBOX public metadata
+
+- Added title, public cover, author and original tag names for Pixiv artwork and FANBOX post URLs. Individual imports, source opening, OS sharing, bookmarklets and browser bookmark HTML use the common pipeline; tags share the existing None/frequency policy. Categories and other fields are not guessed. Authentication, Favorites lists and restricted content downloads are outside scope. [Contract](PIXIV-FANBOX-SPEC.md).
+- New Python10 tests passed. Windows full suite: 261 total, 256 passed, 3 skipped, 2 failed. The two test_server assertions still expect display_alias to leave the original primary name unchanged. Both failed identically in an isolated Git HEAD copy; they are pre-existing failures, not newly introduced. All15 Node scripts and frontend syntax checks passed. The actual browser connection was unavailable, so no visual browser verification is claimed.
+- Linux isolated staging: 40 importer/integration tests passed. VPS-to-source live metadata and RAM JPEGs passed for both sites; Pixiv anonymous null image fields fall back only to the matching public thumbnail, FANBOX restricted-body-null response yields public metadata/cover without access to supporter content.
+- Deployment backed up SQLite as `library-20261015-235846-before-pixiv.sqlite3`, with previous code retained under `/opt/folio/rollback/`. Migration15 updated URL comparison keys/claims only. All other content tables and link columns matched the backup; 4,896 works retained, integrity ok, no foreign-key violations, both services active. Paused jobs were not resumed; no memory-only nhentai key was connected. No work was saved by live tests.
+- Deployment initially stopped before code changes because the ad hoc backup check omitted SQLite's entity_key function. Restored the old services and corrected function registration. Linux's existing exclusive-bind behavior also required waiting for the old socket to expire on restart; no server/network settings were changed.
+- Production Tailscale HTTPS served matching app/helper/bookmarklet/error assets. Its actual import API returned title+author+tags for both samples, and cover preview returned JPEG21,733 /300,983 bytes. Images stayed in RAM. Existing bookmarklets must be regenerated from Imports registration setup.

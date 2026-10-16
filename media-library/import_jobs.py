@@ -9,6 +9,7 @@ import nhentai
 import momonga
 import stores
 import pawchive
+import pixiv
 import nhentai_credentials as credentials
 import import_matching as matching
 
@@ -96,6 +97,18 @@ def init(c):
             work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
             if work:c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
         c.execute('INSERT INTO migrations VALUES(13,?)',(db.now(),))
+    if not c.execute('SELECT 1 FROM migrations WHERE version=15').fetchone():
+        # Preserve saved URLs and entries; rebuild comparison claims only.
+        affected=set()
+        for row in c.execute('SELECT l.id,l.url,l.url_key,w.owner FROM links l JOIN works w ON w.id=l.work_id').fetchall():
+            if not pixiv.location(row['url']):continue
+            normalized=db.normalize_url(row['url']);affected.update(((row['owner'],row['url_key']),(row['owner'],normalized)))
+            c.execute('UPDATE links SET url_key=? WHERE id=?',(normalized,row['id']))
+        for owner,value in affected:
+            c.execute('DELETE FROM source_claims WHERE owner=? AND url_key=?',(owner,value))
+            work=c.execute('SELECT min(w.id) FROM links l JOIN works w ON w.id=l.work_id WHERE w.owner=? AND l.url_key=?',(owner,value)).fetchone()[0]
+            if work:c.execute('INSERT INTO source_claims VALUES(?,?,?)',(owner,value,work))
+        c.execute('INSERT INTO migrations VALUES(15,?)',(db.now(),))
 
 def default_tag_mode(c):
     row=c.execute('SELECT tag_mode FROM import_settings WHERE owner=?',(db.OWNER,)).fetchone()
@@ -191,6 +204,7 @@ def process_item(item):
     momonga_token=momonga.CANCEL.set(lambda:stopped(item['job_id']))
     store_token=stores.CANCEL.set(lambda:stopped(item['job_id']))
     pawchive_token=pawchive.CANCEL.set(lambda:stopped(item['job_id']))
+    pixiv_token=pixiv.CANCEL.set(lambda:stopped(item['job_id']))
     try: data=importer.import_url(item['url'])
     except pawchive.VideoPostSkipped as e:
         with db.transaction() as c:
@@ -201,6 +215,7 @@ def process_item(item):
         momonga.CANCEL.reset(momonga_token)
         stores.CANCEL.reset(store_token)
         pawchive.CANCEL.reset(pawchive_token)
+        pixiv.CANCEL.reset(pixiv_token)
     if data.get('media_kind') in ('mixed','uncertain'):
         with db.transaction() as c:
             c.execute("UPDATE job_items SET status='skipped',message=? WHERE id=?",('Pawchive video/image mixed or uncertain post skipped',item['id']))

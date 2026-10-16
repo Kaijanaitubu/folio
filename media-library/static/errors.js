@@ -1,4 +1,18 @@
 const messages={
+ "Use a Pixiv artwork or FANBOX post URL":"Pixivの作品URLまたはFANBOXの投稿URLを指定してください",
+ "Pixiv/FANBOX post unavailable without login, deleted, or private":"投稿を取得できません。ログインが必要・非公開・削除済みの可能性があります",
+ "Pixiv/FANBOX source could not be reached; try again later":"Pixiv／FANBOXに接続できませんでした。時間をおいて再試行してください",
+ "Pixiv/FANBOX post has no usable title":"Pixiv／FANBOXの投稿タイトルを取得できませんでした",
+ "Pixiv/FANBOX author name unavailable; other metadata was retrieved":"作者名を取得できませんでした。他の情報は取得できました",
+ "FANBOX: imported public metadata and preview only; supporter content was not accessed":"FANBOXの公開メタデータと表紙のみ取得しました。支援者限定の本文・画像は取得していません",
+ "Pixiv/FANBOX returned invalid metadata":"Pixiv／FANBOXの取得情報が想定する形式と異なります",
+ "Pixiv/FANBOX returned invalid tags":"Pixiv／FANBOXのタグ情報が想定する形式と異なります",
+ "Pixiv/FANBOX returned a different post":"Pixiv／FANBOXから異なる投稿の情報が返されました",
+ "Pixiv/FANBOX returned an unexpected content type":"Pixiv／FANBOXの応答形式が想定と異なります",
+ "Unsupported Pixiv image URL":"対応するPixiv／FANBOXの公開画像URLではありません",
+ "Pixiv/FANBOX response exceeds the size limit":"Pixiv／FANBOXの応答がサイズ上限を超えています",
+ "Pixiv/FANBOX response was incomplete":"Pixiv／FANBOXの応答を最後まで取得できませんでした",
+ "Pixiv request timed out":"Pixiv／FANBOXへの接続がタイムアウトしました",
  'FANZA importer supports comics and CG illustrations only':'FANZA同人はコミック・CG／イラストに対応しています。音声・ゲーム・動画などは対象外です',
  'Invalid Kemono favorites JSON':'Kemonoのお気に入りJSONの形式を確認してください',
  'Use Kemono post favorites JSON, not artist favorites':'Kemonoの投稿のお気に入りJSONを選択してください。作者だけの一覧は取り込めません',
@@ -121,7 +135,7 @@ const messages={
  'Failed to fetch':'接続に失敗しました。サーバーが起動しているか確認してください'
 };
 export function localizeError(message,lang){if(lang!=='ja')return message;if(messages[message])return messages[message];
- const prefixes={'Pawchive source returned HTTP ':'PawchiveのHTTP応答：','Duplicate title; import skipped: ':'タイトルが重複しているため取込を中止しました：','Ambiguous alias: ':'別名の候補が複数あります：','Unknown search field: ':'不明な検索フィールド：','Unknown rating dimension: ':'不明な評価軸：','Metadata source returned HTTP ':'取得先のHTTP応答：'};
+ const prefixes={'Pixiv/FANBOX source returned HTTP ':'Pixiv／FANBOXのHTTP応答：','Pawchive source returned HTTP ':'PawchiveのHTTP応答：','Duplicate title; import skipped: ':'タイトルが重複しているため取込を中止しました：','Ambiguous alias: ':'別名の候補が複数あります：','Unknown search field: ':'不明な検索フィールド：','Unknown rating dimension: ':'不明な評価軸：','Metadata source returned HTTP ':'取得先のHTTP応答：'};
  for(const [prefix,jp] of Object.entries(prefixes))if(message.startsWith(prefix))return jp+message.slice(prefix.length).replace('; use rating1, rating2, …','。rating1、rating2などを使用してください');
  if(/^rating\d+ expects 1–\d+$/.test(message))return message.replace(' expects ','の範囲は')+'です';
  return message;

@@ -3,8 +3,14 @@ import cover_relay
 import momonga
 import stores
 import pawchive
+import pixiv
 
 def load(url):
+    if pixiv.valid_image(url):
+        def fetch():
+            try:return pixiv.fetch_image(url)
+            except ValueError as e:raise cover_relay.RelayError(str(e)) from e
+        return cover_relay.CACHE.get(url,fetch)
     if pawchive.valid_image(url):
         def fetch():
             try:return pawchive.fetch_image(url)

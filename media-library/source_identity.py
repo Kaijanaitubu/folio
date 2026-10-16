@@ -11,6 +11,8 @@ def normalize_url(value):
     except (ValueError,UnicodeError): raise ValueError('Invalid URL')
     if u.scheme not in ('http','https') or not host or u.username is not None or u.password is not None:
         raise ValueError('Use an HTTP or HTTPS URL without credentials')
+    import pixiv
+    if pixiv.location(value):return pixiv.canonical(value)
     import pawchive
     pawchive_key=pawchive.comparison(value)
     if pawchive_key:return pawchive_key
