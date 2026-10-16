@@ -165,3 +165,12 @@ for(const language of ['en','ja']){
  await cancelled.context.interactiveImport('work');assert.equal(JSON.stringify(cancelled.context.draft),snapshot);assert.equal(cancelled.context.edited,undefined);
 }
 console.log('Pawchive original-link reimport passed: unchanged metadata can add a secondary link, cancel retains the draft.');
+
+// Content/attachment classification never adds a media confirmation, even for old payloads.
+for(const kind of ['video','mixed','uncertain','image','unknown']){
+ const {context}=setup();context.incoming=structuredClone(context.draft);context.incoming.media_kind=kind;
+ context.confirm=()=>assert.fail('Unexpected media confirmation');
+ await context.interactiveImport('work');assert.equal(context.html,undefined);
+ assert.equal(context.lastToast,en.importNoChanges);
+}
+console.log('Media classifications do not block individual metadata imports.');

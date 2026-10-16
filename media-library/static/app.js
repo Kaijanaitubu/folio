@@ -197,9 +197,6 @@ async function interactiveImport(id,sourceDraft=false){
   const incoming=await api('import','POST',{url:link.url,exclude:id||'',trash_sources:(draft.trash_sources||[]).filter(c=>c.url===link.url)});
   const current=()=>draft===activeDraft&&routeVersion===importVersion;
   if(!current())return;
-  if(['mixed','uncertain'].includes(incoming.media_kind)){
-   if(!await confirm(lang==='ja'?'動画を含む投稿': 'Post contains video',lang==='ja'?'画像と動画が混在しているか、内容を判定できない投稿です。取り込みますか？':'This post contains video and images, or its contents are uncertain. Import it?',lang==='ja'?'取り込む':'Import')||!current())return;
-  }
   for(const ambiguity of incoming.ambiguities||[]){
    const selected=await new Promise(resolve=>{modal(`<h2>${esc(t('selectAlias'))}</h2><p>${esc(ambiguity.name)}</p><div class="stack">${ambiguity.choices.map(c=>`<button class="btn" data-alias-id="${c.id}">${esc(displayName(c))}${c.gender&&c.gender!=='neutral'?' · '+esc(t(c.gender)):''}</button>`).join('')}</div>${btn(t('cancel'),'alias-cancel')}`);$$('[data-alias-id]').forEach(b=>b.onclick=()=>{closeModal();resolve(ambiguity.choices.find(c=>c.id===b.dataset.aliasId))});$('#alias-cancel').onclick=()=>{closeModal();resolve(null)};dialog.oncancel=()=>resolve(null)});
    if(!selected||!current())return;
@@ -329,7 +326,7 @@ async function imports(){
    const result=await api('import-list','POST',{kind:state.kind,text:await file.text()});if(seq!==sequence||!root.isConnected)return;
    bookmarkItems=result.items;selectedBookmarks=new Set(bookmarkItems.map((b,i)=>b.supported&&!b.duplicate?i:-1).filter(i=>i>=0));
    const n=result.summary,s=(en,ja)=>lang==='ja'?ja:en;
-   $('#import-list-summary').innerHTML=`<section class="notice import-file-summary"><b>${esc(file.name)}</b><p>${esc(s('File entries','ファイル内の投稿・リンク'))}: ${n.input} · ${esc(s('Ready to select','選択可能'))}: ${n.selectable} · ${esc(s('Registered URLs','登録済みURL'))}: ${n.registered} · ${esc(s('Repeated in file','ファイル内重複'))}: ${n.duplicates} · ${esc(s('Unsupported / excluded','未対応・対象外'))}: ${n.unsupported}${n.artists_ignored?' · '+esc(s('Artist favorites excluded','お気に入り作者（対象外）'))+': '+n.artists_ignored:''}</p><small>${esc(s('Metadata is fetched only after Start import. Videos and remote fetch failures are reported in the job results.','メタデータの取得は取り込み開始後です。動画の除外や取得失敗は取り込み結果に表示します。'))}</small></section>`;
+   $('#import-list-summary').innerHTML=`<section class="notice import-file-summary"><b>${esc(file.name)}</b><p>${esc(s('File entries','ファイル内の投稿・リンク'))}: ${n.input} · ${esc(s('Ready to select','選択可能'))}: ${n.selectable} · ${esc(s('Registered URLs','登録済みURL'))}: ${n.registered} · ${esc(s('Repeated in file','ファイル内重複'))}: ${n.duplicates} · ${esc(s('Unsupported / excluded','未対応・対象外'))}: ${n.unsupported}${n.artists_ignored?' · '+esc(s('Artist favorites excluded','お気に入り作者（対象外）'))+': '+n.artists_ignored:''}</p><small>${esc(s('Metadata is fetched only after Start import. Posts without a cover can also be imported. Fetch failures are reported in the job results.','メタデータの取得は取り込み開始後です。表紙がない投稿も取り込めます。取得失敗は取り込み結果に表示します。'))}</small></section>`;
    paintBookmarkPreview();
   }catch(e){if(seq===sequence&&root.isConnected)error($('#import-error'),e)}
  };

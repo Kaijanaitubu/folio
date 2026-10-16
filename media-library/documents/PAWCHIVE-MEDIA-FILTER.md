@@ -1,5 +1,11 @@
-# Pawchive media filter
+# Pawchive / FANBOX 投稿フィルター（解除済み）
 
-Video-only posts are rejected in individual imports and reported as skipped in batches. Image/video mixed posts require individual confirmation and are skipped in batches. Archives and unrecognized attachments are marked uncertain: individual confirmation, batch skip with reason. No attachments is unknown; retain existing metadata-only behavior with a warning. Classification uses file metadata extensions only and never downloads videos or opens archives. Images alone do not establish that a post is a comic; a video with an image preview is mixed. This cannot reliably distinguish preview images from independent artwork.
+2026-10-16：ユーザーの指示で、投稿内容・添付ファイル形式による除外をすべて解除した。漫画と無関係な動画が添付されている場合等を誤って除外するため、今後のフィルター設計は改めて相談する。
 
-Kemono bookmark conversion also uses this filter during subsequent Pawchive import. Existing records are not removed.
+Pawchiveの動画のみ、画像と動画の混在、ZIP等の添付、形式不明、画像1枚、添付なしの投稿は、いずれも通常のメタデータ取り込みへ進む。個別取込のメディア確認ダイアログと、一括取込の自動スキップを廃止。Kemonoお気に入り経由のPawchive取り込みにも同じ扱いを適用する。
+
+直接FANBOXからのインポーターにも投稿形式・画像枚数による除外を設けない。画像・記事・テキスト・動画・ファイル形式でも、公開タイトル等を取得できれば表紙なしを含めて取り込める。限定本文へのアクセス機能を追加する変更ではない。
+
+表紙に使える静止画像URLがない場合は表紙を空欄にして、表紙を取得できなかった旨だけを表示する。動画・ZIP・PDF等をダウンロードしたり、その中身から表紙を抽出したりはしない。
+
+既存の重複URL判定、取得エラー、入力・サイズ検証、メタデータ競合確認は継続する。登録済み作品と既存ジョブを自動で書き換えたり、以前スキップした投稿を自動再実行したりはしない。以前スキップされたURLは、元のファイルやリンクから改めて取り込める。
