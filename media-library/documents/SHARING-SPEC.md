@@ -19,7 +19,7 @@
 ## 配信構成
 
 - 私有ライブラリは既存のTailscale HTTPSで運用する。
-- 公開用は `share_server.py` のループバック8768に分離し、共有ページ・表紙・robots.txt以外は404とする。私有API・静的アプリ・バックアップを配信しない。
+- 公開用は `share_server.py` のループバック8768に分離し、共有ページ・共有用CSS・表紙・共通カード画像・robots.txt以外は404とする。私有API・静的アプリ・バックアップを配信しない。
 - CaddyはVPSの公開IPv4上で80/443を受け、HTTPS証明書を自動更新する。既存Tailscaleの443とはIPを分ける。[Caddy公式HTTPS説明](https://caddyserver.com/docs/quick-starts/https)。
 - 公開プロセスはSQLiteをmode=roで開き、共有スナップショットだけを参照する。DB本体はsystemdでも読み取り専用にする。WAL補助ファイル用にDBディレクトリへの書き込みは許可する。
 - トークンを含むアクセスログは保存しない。Referrer-Policy:no-referrerとCSPを付け、メタデータはHTMLとして解釈せずエスケープする。
@@ -39,9 +39,13 @@ F-005のユーザー別ライブラリを先行必須とはせず、現行owner�
 
 コードを `/opt/folio/media-library/` に配置し、Ubuntuのcaddyパッケージを使用する。`deploy/linux/folio-share.service` を `/etc/systemd/system/` に設置する。`deploy/linux/Caddyfile.share.example` のドメインとbind先IPv4を自分の値に変更し、`/etc/caddy/Caddyfile` へ配置する。プライベートサーバーのプロキシ先8765を公開設定へ追加しない。
 
-`/etc/folio/sharing.env` に `FOLIO_SHARE_BASE=https://利用するホスト名` を記載し、`/etc/systemd/system/folio.service.d/sharing.conf` から EnvironmentFile として読み込む。systemd daemon-reload後にfolioを再起動し、folio-shareとcaddyを有効化する。OSとVPS事業者側の両方でTCP 80/443を許可する。SSHの22番は維持する。
+`/etc/folio/sharing.env` に `FOLIO_SHARE_BASE=https://利用するホスト名` を記載し、`/etc/systemd/system/folio.service.d/sharing.conf` と公開側 `folio-share.service` の両方から EnvironmentFile として読み込む。systemd daemon-reload後にfolio・folio-shareを再起動し、folio-shareとcaddyを有効化する。OSとVPS事業者側の両方でTCP 80/443を許可する。SSHの22番は維持する。
 
-新ドメインへ変更するときは、そのDNS AレコードをVPSの公開IPv4へ設定し、Caddyサイト名とsharing.envを変更する。`caddy validate --config /etc/caddy/Caddyfile` 後にCaddyをreloadし、folioを再起動する。新しい証明書が有効であることと、公開側で `/api/config`・`/api/works`・`/app.js` が404であることを確認する。旧ドメインを廃止した場合、配布済み旧URLは利用できなくなる。
+新ドメインへ変更するときは、そのDNS AレコードをVPSの公開IPv4へ設定し、Caddyサイト名とsharing.envを変更する。`caddy validate --config /etc/caddy/Caddyfile` 後にCaddyをreloadし、folio・folio-shareを再起動する。新しい証明書が有効であることと、公開側で `/api/config`・`/api/works`・`/app.js` が404であることを確認する。旧ドメインを廃止した場合、配布済み旧URLは利用できなくなる。
+
+## F-036：リンクカード（2026-10-17）
+
+共有HTMLのheadに、共有時点の作品名と作者・サークルだけの説明を配信する。画像は作品の表紙ではなくFolio共通ロゴ。`/s/{token}/card.png` は有効な共有だけに応答し、解除後は404。本文の表紙・個人記録の公開設定は従来どおり。外部サービスに残るキャッシュの即時消去は保証しない。[詳細仕様と検証](ISSUE-SHARE-LINK-PREVIEW.md)。
 
 稼働確認：folio、folio-share、caddyのsystemd状態を確認する。公開プロセスの一時停止・再起動は私有ライブラリへ影響しない。共有データを含むDBバックアップをデプロイ前に作成済み。
 
