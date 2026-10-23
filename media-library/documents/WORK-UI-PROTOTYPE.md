@@ -4,12 +4,19 @@
 
 ## 開く
 
-現在ユーザーが開いている試作のURLは `http://127.0.0.1:8770/prototypes/work/`。
+PC用の試作URLは `http://127.0.0.1:8770/prototypes/work/`。2026-10-23、停止していた静的サーバーをバックグラウンドで起動し、スマホ向けTailscale配信も追加した。
 
 - [作品詳細](http://127.0.0.1:8770/prototypes/work/#/work/atelier)
 - [作品入力](http://127.0.0.1:8770/prototypes/work/#/edit/atelier)
 
-このPCだけで開ける。スマホ実機・別PCからアクセスできるように公開しているわけではない。端末間同期なし。ブラウザやポートが変わると保存領域も別になる。
+スマホでは、PCと同じTailscaleネットワークに接続して次を開く。
+
+- [スマホ・Tailscale用の作品詳細](https://tubu-pc-ryzen5.tail93424f.ts.net:8443/prototypes/work/#/work/atelier)
+- [スマホ・Tailscale用の作品入力](https://tubu-pc-ryzen5.tail93424f.ts.net:8443/prototypes/work/#/edit/atelier)
+
+PCとスマホのTailscaleをオンにする。配信はTailscale内限定で、インターネット一般への公開ではない。既存の443番のFolioと重複確認ページの設定は維持し、試作専用に8443番を追加した。スマホ側の実操作は本人に確認してもらう。
+
+この試作はこのPC上で動くため、PC停止・スリープ中には開けない。本番VPSのFolioとは別の配信。端末間同期はなく、端末・ブラウザ・URLのホストやポートが変わると保存領域も別になる。ローカルURLで保存した内容はTailscaleのURLへ自動移動しない。
 
 サーバーを止めた後は、PowerShellで **media-library/** を作業ディレクトリとして次を実行する。
 
@@ -18,6 +25,17 @@
 ```
 
 ポートが既存アプリ等で使われている場合は停止させず、`-Port`で空きポートを指定する。通常のFolioサーバーを起動する必要はなく、Python標準の静的配信だけを使用する。Ctrl+Cで終了。
+
+このPCではスマホ向けの転送を次の設定で追加済み。転送はバックグラウンドで維持されるが、PC再起動後にPythonの試作サーバーが自動起動する設定は追加していない。開けないときは先に8770番の試作サーバーを起動する。
+
+```powershell
+tailscale serve --bg --https=8443 http://127.0.0.1:8770
+tailscale serve status
+```
+
+試作用の転送だけを外す場合は `tailscale serve --https=8443 off`。既存の他の転送まで消す `reset` は使わない。
+
+起動後、PCからローカルHTTPとTailscale HTTPSの試作トップ・JavaScript・fonts.cssにHEADリクエストを送り、200応答を確認した。ページ本文の取得やブラウザーでの目視確認とは区別する。
 
 ## 試せること
 
