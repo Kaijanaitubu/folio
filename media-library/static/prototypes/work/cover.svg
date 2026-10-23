@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 760">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#23252b"/><stop offset="1" stop-color="#46403c"/></linearGradient><linearGradient id="light" x2="0" y2="1"><stop stop-color="#f7b77a"/><stop offset="1" stop-color="#ac6b50"/></linearGradient></defs>
+<path fill="url(#bg)" d="M0 0h600v760H0z"/>
+<path d="M0 510 600 255v505H0" fill="#363739"/>
+<path d="m323 125 212-40v433l-212 40z" fill="#171d22"/>
+<path d="m340 139 175-33v393l-175 33z" fill="url(#light)"/>
+<path d="m342 364 171-36m-89-201v384" stroke="#272c30" stroke-width="8"/>
+<circle cx="470" cy="216" r="30" fill="#ffe1ab"/>
+<path d="m342 466 30-35 20 13 28-40 26 28 21-56 48 33v90l-173 33z" fill="#4c4140"/>
+<path d="M0 669 600 520v240H0z" fill="#24272a"/>
+<path d="m300 565 240-47 50 26-242 49z" fill="#826450"/>
+<path d="m337 591 10 113m218-159 9 113" stroke="#b18965" stroke-width="10"/>
+<path d="m373 554 48-10 29 14-49 9z" fill="#e7c8a2"/>
+<path d="m460 551 9-33 21-4 8 28z" fill="#d9ab77"/>
+<path d="m474 513 5-67m0 30-22-16m23 2 16-23" stroke="#828976" stroke-width="5"/>
+<g fill="#f2e5d5" font-family="serif"><text x="48" y="89" font-size="15" letter-spacing="5">A FOLIO ORIGINAL MOCK COVER</text><text x="48" y="176" font-size="40">雨上がりの</text><text x="48" y="230" font-size="40">アトリエ</text><text x="50" y="281" font-size="13" letter-spacing="2">AFTER THE RAIN, WE DRAW.</text><text x="48" y="706" font-size="17" letter-spacing="2">橙野すみ ／ 薄明編集室</text></g>
+<path d="M50 319h64" stroke="#f49a44" stroke-width="3"/>
+</svg>
