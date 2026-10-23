@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {fixtures,clone,allLanguages,representativePages,representativeDate,validDate,associate,disconnect,reconnect,deriveOverall,errors,safeURL} from './static/prototypes/work/model.mjs';
+import {fixtures,clone,allLanguages,representativePages,representativeDate,validDate,associate,disconnect,reconnect,deriveOverall,errors,safeURL,sourceSite,isKeyboardOpen} from './static/prototypes/work/model.mjs';
 const state=fixtures(),work=clone(state.works[0]);
 assert.equal(representativePages(work,state.priorities).pages,40);
 work.links[2].pages=999;
@@ -32,3 +32,17 @@ const bad=clone(work);bad.title=' ';bad.links[0].url='javascript:alert(1)';bad.l
 assert.deepEqual(errors(bad).map(e=>e.key),['needTitle','needURL','needPages','needDate']);
 assert.equal(safeURL('https://example.com/a'),true);assert.equal(safeURL('https://user:password@example.com'),false);
 console.log('Work prototype: representative metadata, precision, 125 rating combinations, associations and input validation passed.');
+
+assert.equal(sourceSite('https://example.com/store-a','dlsite','https://example.com/store-a'),'dlsite');
+for(const [url,site] of [
+ ['https://www.dlsite.com/books/work/=/product_id/BJ123.html','dlsite'],
+ ['https://play.dlsite.com/work/RJ123','dlsite'],['https://dlsharing.com/a','dlsite'],
+ ['https://book.dmm.co.jp/product/a','fanza'],['https://www.dmm.co.jp/a','fanza'],
+ ['https://www.pixiv.net/artworks/1','pixiv'],['https://creator.fanbox.cc/posts/1','fanbox'],
+ ['https://dlsite.com.example.org/a','other'],['https://evil-dlsite.com/a','other'],
+ ['javascript:alert(1)','other'],['https://example.com/new','other']
+])assert.equal(sourceSite(url,'dlsite','https://example.com/store-a'),site);
+const keyboard={editing:true,mobile:true,focused:true,baselineHeight:844,viewportHeight:500};
+assert.equal(isKeyboardOpen(keyboard),true);
+for(const overrides of [{editing:false},{mobile:false},{focused:false},{viewportHeight:760},{scale:2}])assert.equal(isKeyboardOpen({...keyboard,...overrides}),false);
+console.log('Work prototype: URL-derived source identity and software-keyboard visibility checks passed.');

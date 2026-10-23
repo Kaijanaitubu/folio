@@ -47,6 +47,22 @@ export function disconnect(character,original){character.originals=character.ori
 export function reconnect(character,original){character.blocked=character.blocked.filter(o=>o!==original);character.originals=unique([...character.originals,original]);}
 export function deriveOverall(values){if(values[0]===5||values[1]===5)return 5;return values.length===3&&values.every(v=>Number.isInteger(v)&&v>=1&&v<=5)?Math.ceil(values.reduce((a,b)=>a+b,0)/3):null;}
 export function safeURL(value){try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password}catch{return false;}}
+// Labels describe editions freely; source priority comes from the URL, not the label.
+// Preserve the fictional fixtures' source identity unless their URL is edited.
+export function sourceSite(value,current='other',previous=''){
+ if(value===previous)return current;
+ if(!safeURL(value))return 'other';
+ const host=new URL(value).hostname.toLowerCase();
+ const within=domain=>host===domain||host.endsWith('.'+domain);
+ if(within('dlsite.com')||within('dlsharing.com'))return 'dlsite';
+ if(within('dmm.co.jp')||within('dmm.com')||within('fanza.co.jp'))return 'fanza';
+ if(within('pixiv.net'))return 'pixiv';
+ if(within('fanbox.cc'))return 'fanbox';
+ return 'other';
+}
+export function isKeyboardOpen({editing,mobile,focused,baselineHeight,viewportHeight,scale=1}){
+ return Boolean(editing&&mobile&&focused&&scale<=1.05&&baselineHeight-viewportHeight>150);
+}
 export function errors(work){
  const out=[];
  if(!work.title.trim())out.push({path:'title',key:'needTitle'});

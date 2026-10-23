@@ -7,3 +7,39 @@
 @media(max-width:380px){.main{padding-left:13px;padding-right:13px}.grid{grid-template-columns:1fr}.full{grid-column:auto}.viewtabs a{padding:5px 9px}.breadcrumb span:last-child{max-width:145px}.score-buttons button{min-width:26px}.date-edit{grid-template-columns:90px minmax(0,1fr) 26px}.badge-line{gap:4px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 .mobile-tools{display:none}@media(max-width:760px){.footer{flex-wrap:wrap}.mobile-tools{display:flex;gap:18px;width:100%;flex-wrap:wrap}}
+
+/* Source rows navigate; only the separate right-hand arrow reveals supplements. */
+.source-row{display:flex;align-items:stretch}
+.source-main{display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding:15px 17px}
+.source-main:hover{background:var(--raised)}
+.source-main>svg{width:15px;height:15px;color:var(--muted)}
+.source-toggle{width:48px;flex:none;display:grid;place-items:center;border-left:1px solid var(--border);color:var(--muted)}
+.source-toggle:hover{background:var(--raised);color:var(--accent)}
+.source-toggle svg{transition:transform .15s}
+.source-toggle[aria-expanded=true] svg{transform:rotate(90deg)}
+.source-content[hidden]{display:none}
+.link-metadata{border-top:1px solid var(--border);margin-top:20px;padding-top:20px}
+
+/* The inline actions remain available while the software keyboard is open. */
+html{scroll-padding-bottom:110px}
+body.editing .main{padding-bottom:130px}
+.editor-savebar{position:fixed;z-index:10;bottom:max(16px,env(safe-area-inset-bottom));left:260px;right:42px;max-width:1248px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border:1px solid #555244;border-radius:12px;background:#22231ff5;box-shadow:0 8px 35px #0008}
+.editor-savebar>span{font-size:12px;min-width:0}
+.editor-savebar>span small{display:block;max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+.editor-savebar .row{flex:none}
+.editor-savebar .primary{min-width:120px}
+body.keyboard-open .editor-savebar{display:none}
+body.editing #toast{bottom:100px}
+.leave-actions{flex-wrap:wrap}
+@media(min-width:1550px){.editor-savebar{left:283px;right:65px;max-width:1202px}}
+@media(max-width:1100px){.editor-savebar{left:210px;right:25px}}
+@media(max-width:760px){
+ .source-main{padding:13px;gap:10px}
+ .source-toggle{width:44px}
+ .editor-savebar{left:12px;right:12px;bottom:max(10px,env(safe-area-inset-bottom));padding:10px 12px;gap:10px}
+ .editor-savebar>span small{max-width:90px}
+ .editor-savebar .row{gap:7px}
+ .editor-savebar .btn{padding:9px 12px}
+ .editor-savebar .primary{min-width:100px}
+ .leave-actions .btn{flex:1 1 auto}
+}
