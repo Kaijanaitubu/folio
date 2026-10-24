@@ -530,3 +530,5 @@ F-019関連・逆方向探索実験（2026-10-18）：正規URLからHitomi投�
 2026-10-24（F-011・日付検索）：主リンクの代表日付だけで判定し、概要・日付順と同じ値を使用。更新日等を代表に選んだ場合もその値を使い、副リンクや代表以外の日付の検索は今回は追加しない方針を承認。[引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)。文書のみ更新。
 
 2026-10-24（F-011・検索名）：刊行区分はpub:doujin／pub:commercial、創作区分はparody:yes／no／unknownに確定。未設定はnoに含めず、候補に意味の説明を添える。長いpublicationと分かりづらいderivativeという前の提案を訂正。[引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)。文書のみ更新。
+
+2026-10-24（F-011・言語検索）：language:は全リンクの和集合を対象とし、異なる言語のANDは別リンクでも一致。NOTは全リンクにその言語の登録がなければ一致。ページ数・日付の主リンク限定とは独立して判定する方式を承認。[引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)。文書のみ更新。

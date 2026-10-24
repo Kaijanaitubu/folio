@@ -958,3 +958,9 @@ rating0の既存値移行は、rating1（ストーリー）またはrating2（�
 ユーザーはpublicationが長い、derivativeが分かりづらいと指摘し、二次創作をparody:yes/noとする案を提示。開発側が刊行区分をpub:doujin／pub:commercial、創作区分をparody:yes（二次創作）／no（一次創作）／unknown（未設定）として説明し、ユーザーが了承した。
 
 未設定をnoへ含めず、特定の原作名の有無とも区別する。検索候補には日本語等の説明を添える。[本番引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)へ反映。publicationやcreation:derivativeは前の提案であり本番への導入済み構文ではない。残る検索名・複数言語の複合条件等まで今回の了承で全部確定したとは扱わない。本番・試作は変更しない。
+
+## 2026-10-24：言語検索は全リンクの和集合で判定すると承認
+
+ユーザーが提案を了承。language:日本語はどれかのリンクに日本語があれば該当。language:日本語 language:Englishは両方が登録されていれば別リンクでも該当。-language:日本語は全リンクのどこにも日本語が登録されていない作品に該当する。未設定を非日本語の確認済み情報とする意味ではない。
+
+ページ数・日付は引き続き主リンクだけを見る。言語条件の一致先へページ数・日付条件まで移さない。[本番引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)と[リンク別情報](PERSONAL-EDITION-LINK-METADATA-PLAN.md)へ記録。本番・試作の実装は行わない。残りの検索名等は次に相談する。
