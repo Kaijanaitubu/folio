@@ -534,3 +534,5 @@ F-019関連・逆方向探索実験（2026-10-18）：正規URLからHitomi投�
 2026-10-24（F-011・言語検索）：language:は全リンクの和集合を対象とし、異なる言語のANDは別リンクでも一致。NOTは全リンクにその言語の登録がなければ一致。ページ数・日付の主リンク限定とは独立して判定する方式を承認。[引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)。文書のみ更新。
 
 2026-10-24（F-011・検索語整理完了）：全年齢はage:all。他はformat:、original:、series:、age:adult／unknown、ai:generated／partial／unlabelled／unknown、date:と比較演算子の提案を承認。引継ぎ資料で主要な合意済み事項と、実データの移行例外・取得可否・実機調整を分離して整理。[本番引継ぎ](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)。今回は文書のみで本番適用は別会話の指示待ち。
+
+2026-10-24（公開版・共用タグ辞典）：基本構造と利用者提案／運営確定の方式を概ね了承。初期語彙はHitomi・Danbooru・DLsite・FANZAの全タグを候補として精査する案。定義の参考はPixiv百科事典・EHwiki。現行個人DBとの対応はユーザーが辞典制作と並行して進め、対応付け専用機能を先行必須工程にしない。[設計・情報源メモ](PUBLIC-TAG-CONCEPT-DESIGN.md)。今回は記録のみ。
