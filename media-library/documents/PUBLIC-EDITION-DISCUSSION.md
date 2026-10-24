@@ -964,3 +964,9 @@ rating0の既存値移行は、rating1（ストーリー）またはrating2（�
 ユーザーが提案を了承。language:日本語はどれかのリンクに日本語があれば該当。language:日本語 language:Englishは両方が登録されていれば別リンクでも該当。-language:日本語は全リンクのどこにも日本語が登録されていない作品に該当する。未設定を非日本語の確認済み情報とする意味ではない。
 
 ページ数・日付は引き続き主リンクだけを見る。言語条件の一致先へページ数・日付条件まで移さない。[本番引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)と[リンク別情報](PERSONAL-EDITION-LINK-METADATA-PLAN.md)へ記録。本番・試作の実装は行わない。残りの検索名等は次に相談する。
+
+## 2026-10-24：残る検索語を承認・全年齢はage:allへ短縮
+
+ユーザーは全年齢をage:allとするよう指定し、他は提案どおり了承。形式format:manga／cg／other、原作original:、既存series:、年齢age:adult／all／unknown、AI ai:generated／partial／unlabelled／unknown、代表日付date:と =／>／>=／<／<= の比較演算子を採用する。候補とヘルプに意味・用例を英日で追加する。
+
+[本番引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)の検索節と確定状況を更新。日付・言語・共有・統合等について既に合意した内容を未決事項へ戻さず、実データ確認が必要な移行例外・各取得経路の可否・実機調整を分離した。今回も文書のみ。本番適用は別会話の指示待ち。公開版全体の議論が完了したという意味ではない。
