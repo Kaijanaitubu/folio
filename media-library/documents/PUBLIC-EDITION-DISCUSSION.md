@@ -952,3 +952,9 @@ rating0の既存値移行は、rating1（ストーリー）またはrating2（�
 ユーザーが提案を了承。概要表示・日付順・日付検索で主リンクの同じ代表日付を使う。利用者が更新日を代表に選べばその値で検索。副リンクや代表以外の日付を対象にする機能は今回追加しない。年・年月の比較方法は既存合意の年初・月初を使用する。
 
 [本番引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)と[リンク別情報](PERSONAL-EDITION-LINK-METADATA-PLAN.md)へ反映。今回は文書のみ。本番・試作のコードは変更しない。次の小議題候補は新分類や原作の検索キーワード、複数言語の検索方法。
+
+## 2026-10-24：検索名はpub:とparody:を採用
+
+ユーザーはpublicationが長い、derivativeが分かりづらいと指摘し、二次創作をparody:yes/noとする案を提示。開発側が刊行区分をpub:doujin／pub:commercial、創作区分をparody:yes（二次創作）／no（一次創作）／unknown（未設定）として説明し、ユーザーが了承した。
+
+未設定をnoへ含めず、特定の原作名の有無とも区別する。検索候補には日本語等の説明を添える。[本番引継ぎ仕様](PERSONAL-EDITION-WORK-IMPLEMENTATION-SPEC-20261024.md)へ反映。publicationやcreation:derivativeは前の提案であり本番への導入済み構文ではない。残る検索名・複数言語の複合条件等まで今回の了承で全部確定したとは扱わない。本番・試作は変更しない。
